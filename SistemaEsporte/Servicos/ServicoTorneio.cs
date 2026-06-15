@@ -107,26 +107,22 @@ namespace SistemaEsporte.Servicos
             await _db.SaveChangesAsync();
 
             var times = torneio.Times.OrderBy(_ => Guid.NewGuid()).ToList();
-            // Completa para a próxima potência de 2
             int n = 1;
             while (n < times.Count) n *= 2;
 
-            var partidas = CriarEstruturaMata(torneioId, n, times, idaVolta: false);
-            _db.PartidasTorneio.AddRange(partidas);
             torneio.Status = StatusTorneio.EmAndamento;
             await _db.SaveChangesAsync();
+
+            await CriarEstruturaMataAsync(_db, torneioId, n, times, idaVolta: false);
         }
 
-        internal static List<PartidaTorneio> CriarEstruturaMata(int torneioId, int n, List<TorneioTime> times, bool idaVolta)
+        internal static async Task CriarEstruturaMataAsync(ContextoBanco db, int torneioId, int n, List<TorneioTime> times, bool idaVolta)
         {
-            var partidas = new List<PartidaTorneio>();
             int totalRodadas = (int)Math.Log2(n);
-            int id = 1;
 
-            // Cria partidas de trás para frente (final primeiro para ter IDs encadeados)
-            // Mapa rodada → lista de PartidaTorneio
+            // Passo 1: cria e salva todas as partidas sem encadeamento para obter IDs reais
             var porRodada = new Dictionary<int, List<PartidaTorneio>>();
-            for (int r = totalRodadas; r >= 1; r--)
+            for (int r = 1; r <= totalRodadas; r++)
             {
                 int qtd = n / (int)Math.Pow(2, r);
                 var lista = new List<PartidaTorneio>();
@@ -140,22 +136,23 @@ namespace SistemaEsporte.Servicos
                     });
                 }
                 porRodada[r] = lista;
-                partidas.AddRange(lista);
+                db.PartidasTorneio.AddRange(lista);
             }
+            await db.SaveChangesAsync(); // agora todos têm IDs reais
 
-            // Encadeia próxima partida
+            // Passo 2: encadeia usando IDs reais
             for (int r = 1; r < totalRodadas; r++)
             {
                 var atual    = porRodada[r];
                 var proximas = porRodada[r + 1];
                 for (int i = 0; i < atual.Count; i++)
                 {
-                    atual[i].ProximaPartidaId     = proximas[i / 2].Id != 0 ? proximas[i / 2].Id : -(i / 2 + 1);
+                    atual[i].ProximaPartidaId      = proximas[i / 2].Id;
                     atual[i].PosicaoProximaPartida = (i % 2) + 1;
                 }
             }
 
-            // Preenche primeiro round com os times (e BYEs)
+            // Passo 3: preenche primeiro round com times (e BYEs)
             var primeiraRodada = porRodada[1];
             for (int i = 0; i < primeiraRodada.Count; i++)
             {
@@ -165,7 +162,15 @@ namespace SistemaEsporte.Servicos
                 if (p.Time2Id == null) { p.EhBye = true; p.VencedorId = p.Time1Id; p.Concluida = true; }
             }
 
-            return partidas;
+            // BYEs da primeira rodada avançam automaticamente
+            foreach (var p in primeiraRodada.Where(p => p.EhBye && p.ProximaPartidaId.HasValue && p.VencedorId.HasValue))
+            {
+                var proxima = porRodada[2].First(x => x.Id == p.ProximaPartidaId.Value);
+                if (p.PosicaoProximaPartida == 1) proxima.Time1Id = p.VencedorId;
+                else                              proxima.Time2Id = p.VencedorId;
+            }
+
+            await db.SaveChangesAsync();
         }
 
         private static FasePartida RodadaParaFase(int rodada, int total) => (total - rodada) switch
@@ -255,9 +260,7 @@ namespace SistemaEsporte.Servicos
             int n = 1;
             while (n < classificados.Count) n *= 2;
 
-            var partidas = ServicoMataMata.CriarEstruturaMata(torneioId, n, classificados, idaVolta: false);
-            _db.PartidasTorneio.AddRange(partidas);
-            await _db.SaveChangesAsync();
+            await ServicoMataMata.CriarEstruturaMataAsync(_db, torneioId, n, classificados, idaVolta: false);
         }
     }
 }
