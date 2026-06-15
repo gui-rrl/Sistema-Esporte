@@ -134,15 +134,29 @@ function renderizar() {
   // Times
   if (t.status === 0) {
     html += renderTimesInscritos(t.times);
+  } else if (t.formato === 1) {
+    // Copa: partidas dos grupos primeiro, tabelas por grupo abaixo
+    if (t.partidas.length > 0) {
+      html += renderGrupos(t);
+      html += renderTabelasPorGrupo(t);
+      const temMataMata = t.partidas.some(p =>
+        ['OitavasDeFinall','QuartasDeFinall','Semifinal','Terceiro','Final'].includes(p.fase));
+      if (temMataMata) {
+        html += `<div class="card-app mb-2">
+          <div class="card-body" style="text-align:center;padding:1.25rem">
+            <a href="/chaveamento.html?id=${id}" class="btn btn-primario" style="font-size:1rem;padding:.65rem 2rem">
+              🥊 Ver Chaveamento
+            </a>
+          </div>
+        </div>`;
+      }
+    }
   } else {
-    html += renderTabelaTimes(t.times, t.formato === 1 || t.formato === 0);
-  }
-
-  // Partidas
-  if (t.partidas.length > 0) {
-    if (t.formato === 0) html += renderRodadas(t);
-    else if (t.formato === 1) html += renderGrupos(t) + renderChaveamento(t);
-    else html += renderChaveamento(t);
+    html += renderTabelaTimes(t.times, t.formato === 0);
+    if (t.partidas.length > 0) {
+      if (t.formato === 0) html += renderRodadas(t);
+      else html += renderChaveamento(t);
+    }
   }
 
   document.getElementById('conteudo').innerHTML = html;
@@ -214,6 +228,71 @@ function renderTabelaTimes(times, comGrupo) {
       }).join('')}
       </tbody>
     </table></div>
+  </div>`;
+}
+
+// ===== Tabelas por grupo (copa) =====
+function renderTabelasPorGrupo(t) {
+  const porGrupo = {};
+  t.times.forEach(tt => {
+    const g = tt.grupo || 'Sem Grupo';
+    (porGrupo[g] = porGrupo[g] || []).push(tt);
+  });
+  const grupos = Object.keys(porGrupo).sort();
+  if (!grupos.length) return '';
+
+  const tabelas = grupos.map(g => {
+    const times = porGrupo[g].slice().sort((a, b) =>
+      b.pontos - a.pontos ||
+      b.vitorias - a.vitorias ||
+      b.saldoGols - a.saldoGols ||
+      b.golsMarcados - a.golsMarcados
+    );
+    const rows = times.map((tt, i) => {
+      const pos = i + 1;
+      const badge = pos <= 2
+        ? `<span class="rank-badge rank-${pos}">${pos}</span>`
+        : `<span class="rank-badge">${pos}</span>`;
+      return `<tr>
+        <td class="col-num">${badge}</td>
+        <td><div class="time-nome">
+          <img class="escudo" src="${tt.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+          <a href="/time.html?id=${tt.timeId}">${tt.nome}</a>
+        </div></td>
+        <td class="col-num"><span class="score-pill">${tt.pontos}</span></td>
+        <td class="col-num">${tt.partidasJogadas}</td>
+        <td class="col-num" style="color:var(--success);font-weight:600">${tt.vitorias}</td>
+        <td class="col-num" style="color:var(--warning)">${tt.empates}</td>
+        <td class="col-num" style="color:var(--danger)">${tt.derrotas}</td>
+        <td class="col-num">${tt.saldoGols >= 0 ? '+' + tt.saldoGols : tt.saldoGols}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div>
+      <div style="font-size:.75rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem">
+        Grupo ${g.replace('Grupo','')}
+      </div>
+      <div class="tabela-wrap"><table class="table-app">
+        <thead><tr>
+          <th class="col-num" style="width:36px">#</th>
+          <th>Time</th>
+          <th class="col-num">Pts</th>
+          <th class="col-num">PJ</th>
+          <th class="col-num">V</th>
+          <th class="col-num">E</th>
+          <th class="col-num">D</th>
+          <th class="col-num">SG</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>`;
+  }).join('');
+
+  return `<div class="card-app mb-2">
+    <div class="card-header">📊 Classificação por Grupo</div>
+    <div class="card-body">
+      <div class="grupos-grid">${tabelas}</div>
+    </div>
   </div>`;
 }
 
@@ -293,11 +372,11 @@ function renderLinhaPartida(p, t) {
     ? `<button onclick="abrirRes(${p.id},'${n1}','${n2}')" class="btn btn-secundario btn-sm" style="margin-left:auto">+ Resultado</button>`
     : '';
   return `<div class="partida-row">
-    <img class="escudo" style="width:26px;height:26px" src="${t.times.find(x=>x.id===p.time1Id)?.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
-    <span style="${v1?'color:var(--accent);font-weight:600':'color:var(--text-1)'}">${n1}</span>
+    <img class="escudo" src="${t.times.find(x=>x.id===p.time1Id)?.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+    <span class="nome-time" style="${v1?'color:var(--accent);font-weight:600':'color:var(--text-1)'}" title="${n1}">${n1}</span>
     ${placar}
-    <span style="${v2?'color:var(--accent);font-weight:600':'color:var(--text-1)'}">${n2}</span>
-    <img class="escudo" style="width:26px;height:26px" src="${t.times.find(x=>x.id===p.time2Id)?.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+    <span class="nome-time nome-dir" style="${v2?'color:var(--accent);font-weight:600':'color:var(--text-1)'}" title="${n2}">${n2}</span>
+    <img class="escudo" src="${t.times.find(x=>x.id===p.time2Id)?.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
     ${btn}
   </div>`;
 }

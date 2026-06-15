@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chaveamento — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    /* ===== Layout do bracket ===== */
+    .bracket-page { overflow-x: auto; padding-bottom: 2rem; }
+
+    .bracket {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      min-width: max-content;
+      padding: 1rem 0;
+    }
+
+    /* Coluna de uma fase */
+    .b-col {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      min-width: 220px;
+      padding: 0 6px;
+    }
+
+    .b-col-titulo {
+      text-align: center;
+      font-size: .68rem;
+      font-weight: 700;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-bottom: .75rem;
+      padding-bottom: .4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .b-col-partidas {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      justify-content: space-around;
+    }
+
+    /* Wrapper de cada partida com espaçamento relativo */
+    .b-match-wrap {
+      display: flex;
+      align-items: center;
+      flex: 1;
+    }
+
+    /* Card da partida */
+    .b-card {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--surface);
+      transition: box-shadow .15s, border-color .15s;
+      box-shadow: var(--shadow-sm);
+    }
+    .b-card:hover { box-shadow: var(--shadow); border-color: var(--border-strong); }
+
+    .b-card.final-card {
+      border-color: var(--primary-2);
+      box-shadow: 0 0 0 1px rgba(99,102,241,.3), var(--shadow);
+    }
+
+    .b-card.terceiro-card { border-color: #b45309; }
+
+    /* Slot de um time dentro do card */
+    .b-slot {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      padding: .55rem .75rem;
+      min-height: 42px;
+      position: relative;
+      transition: background .12s;
+    }
+
+    .b-slot + .b-slot { border-top: 1px solid var(--border); }
+
+    .b-slot.vencedor {
+      background: rgba(99,102,241,.1);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .b-slot.pendente { color: var(--text-3); font-style: italic; }
+    .b-slot.bye-slot { color: var(--text-3); background: rgba(255,255,255,.015); }
+
+    .b-slot img {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-strong);
+      flex-shrink: 0;
+    }
+
+    .b-slot .b-nome {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .87rem;
+    }
+
+    .b-slot .b-gols {
+      font-weight: 700;
+      font-family: 'Sora', sans-serif;
+      font-size: .95rem;
+      color: var(--primary-2);
+      min-width: 20px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .b-slot .b-bye-tag {
+      font-size: .68rem;
+      color: var(--text-3);
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .b-btn-area {
+      padding: .3rem .6rem;
+      border-top: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+
+    /* Conector SVG entre colunas */
+    .b-connector {
+      display: flex;
+      flex-direction: column;
+      width: 36px;
+      flex-shrink: 0;
+      align-self: stretch;
+      position: relative;
+    }
+
+    .b-connector svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    /* Emblema do campeão */
+    .campeao-banner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .4rem;
+      padding: .75rem 1rem;
+      background: linear-gradient(135deg, rgba(99,102,241,.15), rgba(168,85,247,.1));
+      border: 1px solid var(--primary-2);
+      border-radius: 12px;
+      margin-top: .5rem;
+      text-align: center;
+    }
+
+    .campeao-banner img {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      border: 2px solid var(--primary-2);
+      object-fit: cover;
+    }
+
+    .campeao-banner .campeao-label {
+      font-size: .65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--primary-2);
+    }
+
+    .campeao-banner .campeao-nome {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-1);
+    }
+
+    /* 3º lugar */
+    .terceiro-section {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .terceiro-header {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 1rem;
+    }
+
+    .terceiro-header::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+  </style>
+</head>
+<body>
+<nav class="app-navbar" id="navbar"></nav>
+
+<main class="container page">
+  <div id="conteudo">
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+  </div>
+</main>
+
+<!-- Modal resultado -->
+<div class="modal-overlay oculto" id="modalResultado">
+  <div class="modal">
+    <div class="modal-titulo">Registrar Resultado</div>
+    <div id="erroRes" class="alerta alerta-erro oculto"></div>
+    <input type="hidden" id="resPartidaId">
+    <div class="flex gap-1 items-center mb-2">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label class="form-label" id="labelT1">Time 1</label>
+        <input type="number" id="resGolsT1" class="input" value="0" min="0">
+      </div>
+      <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--text-3);font-size:1.1rem">×</span>
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label class="form-label" id="labelT2">Time 2</label>
+        <input type="number" id="resGolsT2" class="input" value="0" min="0">
+      </div>
+    </div>
+    <div class="modal-acoes">
+      <button onclick="fecharModalRes()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="salvarResultado()" class="btn btn-primario">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+const id = new URLSearchParams(location.search).get('id');
+if (!id) location.href = '/torneios.html';
+
+let torneio = null;
+
+const FASES_ORDEM = ['OitavasDeFinall','QuartasDeFinall','Semifinal','Final'];
+const FASES_LABEL = {
+  OitavasDeFinall: 'Oitavas de Final',
+  QuartasDeFinall: 'Quartas de Final',
+  Semifinal:       'Semifinal',
+  Final:           'Final',
+  Terceiro:        '3º Lugar',
+};
+
+async function carregar() {
+  const resp = await apiFetch(`/api/torneios/${id}`);
+  if (!resp?.ok) {
+    document.getElementById('conteudo').innerHTML =
+      '<div class="empty-state"><div class="icon">❌</div><div class="title">Torneio não encontrado</div></div>';
+    return;
+  }
+  torneio = await resp.json();
+  renderizar();
+}
+
+function nomeTime(tid) {
+  if (!tid) return null;
+  return torneio.times.find(x => x.id === tid)?.nome || null;
+}
+
+function escudo(tid) {
+  return torneio.times.find(x => x.id === tid)?.escudoUrl || '/img/escudo-default.svg';
+}
+
+function slot(tid, gols, concluida, vencedor, bye) {
+  const nome = tid ? (nomeTime(tid) || '?') : 'A definir';
+  const esc  = escudo(tid);
+  let cls = '';
+  if (!tid)         cls = 'pendente';
+  else if (vencedor) cls = 'vencedor';
+  else if (bye)      cls = 'bye-slot';
+
+  const golsHtml  = concluida && !bye && tid ? `<span class="b-gols">${gols ?? ''}</span>` : '';
+  const byeTag    = bye ? `<span class="b-bye-tag">BYE</span>` : '';
+  const imgHtml   = tid ? `<img src="${esc}" onerror="this.src='/img/escudo-default.svg'">` : `<img src="/img/escudo-default.svg">`;
+
+  return `<div class="b-slot ${cls}">
+    ${imgHtml}
+    <span class="b-nome" title="${nome}">${nome}</span>
+    ${golsHtml}${byeTag}
+  </div>`;
+}
+
+function card(p, extraClass = '') {
+  const v1 = p.concluida && p.vencedorId === p.time1Id;
+  const v2 = p.concluida && p.vencedorId === p.time2Id;
+  const admin = isAdmin();
+
+  if (p.ehBye) {
+    return `<div class="b-card ${extraClass}">
+      ${slot(p.time1Id, null, false, true, false)}
+      <div class="b-slot bye-slot"><img src="/img/escudo-default.svg"><span class="b-nome" style="font-style:italic">—</span></div>
+    </div>`;
+  }
+
+  const btnHtml = admin && !p.concluida && p.time1Id && p.time2Id
+    ? `<div class="b-btn-area"><button onclick="abrirRes(${p.id})" class="btn btn-secundario btn-sm w-100">+ Resultado</button></div>` : '';
+
+  return `<div class="b-card ${extraClass}">
+    ${slot(p.time1Id, p.golsTime1, p.concluida, v1, false)}
+    ${slot(p.time2Id, p.golsTime2, p.concluida, v2, false)}
+    ${btnHtml}
+  </div>`;
+}
+
+function renderizar() {
+  const t = torneio;
+  const partidas = t.partidas.filter(p => Object.keys(FASES_LABEL).includes(p.fase));
+
+  if (!partidas.length) {
+    document.getElementById('conteudo').innerHTML = `
+      <div class="flex items-center gap-1 mb-2">
+        <a href="/torneio.html?id=${id}" class="texto-muted-2" style="font-size:.82rem">← Voltar ao torneio</a>
+      </div>
+      <div class="card-app">
+        <div class="card-body">
+          <div class="empty-state" style="padding:2.5rem">
+            <div class="icon" style="font-size:2.5rem">🥊</div>
+            <div class="title">Mata-mata ainda não gerado</div>
+            <div class="desc">Conclua a fase de grupos para liberar o chaveamento.</div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const porFase = {};
+  partidas.forEach(p => { (porFase[p.fase] = porFase[p.fase] || []).push(p); });
+
+  const fasesPresentes = FASES_ORDEM.filter(f => porFase[f]);
+  const terceiro = porFase['Terceiro'] || [];
+
+  // Campeão
+  const final = (porFase['Final'] || [])[0];
+  let campeaoHtml = '';
+  if (final?.concluida && final.vencedorId) {
+    const nome = nomeTime(final.vencedorId) || '?';
+    const esc  = escudo(final.vencedorId);
+    campeaoHtml = `<div class="campeao-banner">
+      <div class="campeao-label">🏆 Campeão</div>
+      <img src="${esc}" onerror="this.src='/img/escudo-default.svg'">
+      <div class="campeao-nome">${nome}</div>
+    </div>`;
+  }
+
+  // Monta bracket coluna por coluna
+  let bracketHtml = '';
+  fasesPresentes.forEach((fase, fi) => {
+    const ps = porFase[fase];
+    const isFinal = fase === 'Final';
+
+    // Calcula altura de cada slot de partida (em vh relativo ao número de partidas na 1ª fase)
+    // Cada partida ocupa 1 "slot" vertical, dobrando a cada rodada
+    const numPrimeiraFase = porFase[fasesPresentes[0]]?.length || 1;
+    const fator = Math.pow(2, fi);
+    const alturaSlot = `${fator * 92}px`; // 92px base por partida
+
+    const partidasHtml = ps.map(p =>
+      `<div class="b-match-wrap" style="height:${alturaSlot};align-items:center">
+        ${card(p, isFinal ? 'final-card' : '')}
+      </div>`
+    ).join('');
+
+    bracketHtml += `
+      <div class="b-col" style="min-width:${isFinal ? 230 : 220}px">
+        <div class="b-col-titulo">${FASES_LABEL[fase]}</div>
+        <div class="b-col-partidas">${partidasHtml}${isFinal ? campeaoHtml : ''}</div>
+      </div>`;
+
+    // Conector SVG entre esta fase e a próxima
+    if (fi < fasesPresentes.length - 1) {
+      const numAtual = ps.length;
+      const numProx  = (porFase[fasesPresentes[fi + 1]] || []).length;
+      // Linha simples decorativa
+      bracketHtml += `
+        <div class="b-connector" style="min-width:36px">
+          <svg preserveAspectRatio="none" viewBox="0 0 36 ${numAtual * fator * 92}" xmlns="http://www.w3.org/2000/svg">
+            ${Array.from({length: numProx}, (_, i) => {
+              const topA  = (i * 2)     * fator * 92 + 46; // centro da partida de cima
+              const topB  = (i * 2 + 1) * fator * 92 + 46; // centro da partida de baixo
+              const midY  = (topA + topB) / 2;
+              return `
+                <line x1="0" y1="${topA}" x2="18" y2="${topA}" stroke="var(--border)" stroke-width="1.5"/>
+                <line x1="0" y1="${topB}" x2="18" y2="${topB}" stroke="var(--border)" stroke-width="1.5"/>
+                <line x1="18" y1="${topA}" x2="18" y2="${topB}" stroke="var(--border)" stroke-width="1.5"/>
+                <line x1="18" y1="${midY}" x2="36" y2="${midY}" stroke="var(--border)" stroke-width="1.5"/>`;
+            }).join('')}
+          </svg>
+        </div>`;
+    }
+  });
+
+  // 3º lugar
+  let terceiroHtml = '';
+  if (terceiro.length) {
+    terceiroHtml = `
+      <div class="terceiro-section">
+        <div class="terceiro-header">🥉 Disputa de 3º Lugar</div>
+        <div style="max-width:260px">${terceiro.map(p => card(p, 'terceiro-card')).join('')}</div>
+      </div>`;
+  }
+
+  document.getElementById('conteudo').innerHTML = `
+    <div class="flex items-center gap-1 mb-2">
+      <a href="/torneio.html?id=${id}" class="texto-muted-2" style="font-size:.82rem">← Voltar ao torneio</a>
+    </div>
+    <div class="flex justify-between items-center mb-3" style="flex-wrap:wrap;gap:.75rem">
+      <h1 class="page-title" style="margin-bottom:0">
+        <span class="icon-badge">🥊</span>${t.nome} — Chaveamento
+      </h1>
+    </div>
+    <div class="card-app">
+      <div class="card-body">
+        <div class="bracket-page">
+          <div class="bracket">${bracketHtml}</div>
+          ${terceiroHtml}
+        </div>
+      </div>
+    </div>`;
+}
+
+// Modal
+function abrirRes(partidaId) {
+  const p  = torneio.partidas.find(x => x.id === partidaId);
+  const n1 = nomeTime(p?.time1Id) || 'Time 1';
+  const n2 = nomeTime(p?.time2Id) || 'Time 2';
+  document.getElementById('resPartidaId').value   = partidaId;
+  document.getElementById('labelT1').textContent  = n1;
+  document.getElementById('labelT2').textContent  = n2;
+  document.getElementById('resGolsT1').value      = 0;
+  document.getElementById('resGolsT2').value      = 0;
+  document.getElementById('erroRes').classList.add('oculto');
+  document.getElementById('modalResultado').classList.remove('oculto');
+}
+
+function fecharModalRes() { document.getElementById('modalResultado').classList.add('oculto'); }
+
+async function salvarResultado() {
+  const pid  = document.getElementById('resPartidaId').value;
+  const body = {
+    golsTime1: parseInt(document.getElementById('resGolsT1').value),
+    golsTime2: parseInt(document.getElementById('resGolsT2').value),
+  };
+  const resp = await apiFetch(`/api/torneios/${id}/partidas/${pid}`, { method:'PUT', body:JSON.stringify(body) });
+  if (resp?.ok) { fecharModalRes(); carregar(); }
+  else {
+    const d  = await resp?.json();
+    const el = document.getElementById('erroRes');
+    el.textContent = d?.erro || 'Erro ao salvar resultado.';
+    el.classList.remove('oculto');
+  }
+}
+
+carregar();
+</script>
+</body>
+</html>

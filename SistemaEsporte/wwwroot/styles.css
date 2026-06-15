@@ -599,7 +599,7 @@ table.table-app {
 /* ===== Grupos grid ===== */
 .grupos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill,minmax(280px,1fr));
+  grid-template-columns: repeat(2,1fr);
   gap: 1rem;
 }
 
@@ -629,13 +629,28 @@ table.table-app {
   display: flex;
   align-items: center;
   gap: .75rem;
-  padding: .6rem .85rem;
+  padding: .75rem 1rem;
   border-radius: 10px;
   border: 1px solid var(--border);
   background: rgba(255,255,255,0.02);
   margin-bottom: .5rem;
   transition: background .15s;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+  font-size: .95rem;
+}
+
+.partida-row .nome-time {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .95rem;
+}
+
+.partida-row .nome-time.nome-dir {
+  text-align: right;
 }
 
 .partida-row:hover { background: rgba(255,255,255,0.045); }
