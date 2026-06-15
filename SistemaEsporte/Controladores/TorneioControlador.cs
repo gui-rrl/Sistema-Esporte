@@ -239,8 +239,11 @@ namespace SistemaEsporte.Controladores
                 vencedorId = dto.GolsTime1 > dto.GolsTime2 ? partida.Time1Id : dto.GolsTime1 < dto.GolsTime2 ? partida.Time2Id : null;
             }
 
-            if (vencedorId == null && partida.Fase != FasePartida.RodadaLiga)
-                return BadRequest(new { erro = "Mata-mata não pode terminar empatado. Informe o vencedor." });
+            var ehFaseEliminatoria = partida.Fase is FasePartida.OitavasDeFinall or FasePartida.QuartasDeFinall
+                or FasePartida.Semifinal or FasePartida.Terceiro or FasePartida.Final;
+
+            if (vencedorId == null && ehFaseEliminatoria)
+                return BadRequest(new { erro = "Fase eliminatória não pode terminar empatada. Informe o vencedor." });
 
             partida.VencedorId = vencedorId;
 
