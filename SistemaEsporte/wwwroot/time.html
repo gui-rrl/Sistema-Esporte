@@ -7,11 +7,11 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<nav class="navbar" id="navbar"></nav>
+<nav class="app-navbar" id="navbar"></nav>
 
-<main class="container pagina">
+<main class="container page">
   <div id="conteudo">
-    <p class="texto-muted">Carregando...</p>
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
   </div>
 </main>
 
@@ -23,73 +23,142 @@ if (!id) location.href = '/index.html';
 
 async function carregar() {
   const resp = await apiFetch(`/api/times/${id}`);
-  if (!resp?.ok) { document.getElementById('conteudo').innerHTML = '<p class="texto-muted">Time não encontrado.</p>'; return; }
+  if (!resp?.ok) {
+    document.getElementById('conteudo').innerHTML = '<div class="empty-state"><div class="icon">❌</div><div class="title">Time não encontrado</div></div>';
+    return;
+  }
   const t = await resp.json();
 
-  const adminAcoes = isAdmin() ? `
-    <div class="flex gap-1" style="margin-top:1rem">
-      <button onclick="abrirUploadEscudo()" class="btn btn-secundario btn-sm">📷 Alterar escudo</button>
-      <button onclick="abrirEditarNome()" class="btn btn-secundario btn-sm">✏️ Editar nome</button>
-      <button onclick="removerTime()" class="btn btn-perigo btn-sm">🗑️ Remover</button>
-    </div>
-    <input type="file" id="inputEscudo" accept="image/*" style="display:none" onchange="uploadEscudo(this)">` : '';
+  const inicialNome = t.nome.charAt(0).toUpperCase();
 
   document.getElementById('conteudo').innerHTML = `
-    <div class="flex gap-2 items-center mb-2" style="flex-wrap:wrap">
-      <img id="escudoImg" class="escudo escudo-lg" src="${t.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
-      <div>
-        <h1 class="pagina-titulo" style="margin-bottom:.2rem" id="nomeTime">${t.nome}</h1>
-        ${adminAcoes}
-      </div>
-    </div>
+    <!-- Hero do perfil -->
+    <div style="
+      background: radial-gradient(800px 300px at 20% -10%, rgba(22,163,74,0.18), transparent 60%),
+                  radial-gradient(600px 300px at 100% 100%, rgba(52,211,153,0.12), transparent 60%),
+                  linear-gradient(180deg,rgba(255,255,255,0.055) 0%,rgba(255,255,255,0.02) 100%);
+      border:1px solid var(--border);border-radius:var(--radius-lg);
+      padding:2rem;margin-bottom:1.5rem;
+      display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
 
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-valor" style="color:var(--verde-claro)">${t.pontuacao}</div><div class="stat-label">Pontos</div></div>
-      <div class="stat-card"><div class="stat-valor">${t.partidas}</div><div class="stat-label">Partidas</div></div>
-      <div class="stat-card"><div class="stat-valor" style="color:var(--verde-claro)">${t.totalVitorias}</div><div class="stat-label">Vitórias</div></div>
-      <div class="stat-card"><div class="stat-valor">${t.totalEmpates}</div><div class="stat-label">Empates</div></div>
-      <div class="stat-card"><div class="stat-valor" style="color:var(--perigo)">${t.totalDerrotas}</div><div class="stat-label">Derrotas</div></div>
-      <div class="stat-card"><div class="stat-valor">${t.aproveitamento}%</div><div class="stat-label">Aproveitamento</div></div>
-      <div class="stat-card"><div class="stat-valor">${t.totalGolsMarcados}</div><div class="stat-label">Gols marcados</div></div>
-      <div class="stat-card"><div class="stat-valor">${t.totalGolsSofridos}</div><div class="stat-label">Gols sofridos</div></div>
-      <div class="stat-card"><div class="stat-valor">${t.saldoGols >= 0 ? '+' + t.saldoGols : t.saldoGols}</div><div class="stat-label">Saldo de gols</div></div>
+      <div style="position:relative">
+        <img id="escudoImg"
+          src="${t.escudoUrl || ''}"
+          onerror="this.style.display='none';document.getElementById('escudoLetra').style.display='inline-flex'"
+          ${t.escudoUrl ? '' : 'style="display:none"'}
+          style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:2px solid var(--border-strong);box-shadow:var(--shadow-glow)">
+        <div id="escudoLetra" style="
+          width:88px;height:88px;border-radius:50%;
+          background:var(--gradient-primary);color:#fff;
+          display:${t.escudoUrl ? 'none' : 'inline-flex'};
+          align-items:center;justify-content:center;
+          font-family:'Sora',sans-serif;font-weight:800;font-size:2.2rem;
+          box-shadow:var(--shadow-glow)">${inicialNome}</div>
+        ${isAdmin() ? `
+          <button onclick="document.getElementById('inputEscudo').click()"
+            style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-radius:50%;
+              background:var(--gradient-primary);border:2px solid var(--bg-1);
+              color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem"
+            title="Alterar escudo">✏️</button>
+          <input type="file" id="inputEscudo" accept="image/*" style="display:none" onchange="uploadEscudo(this)">` : ''}
+      </div>
+
+      <div style="flex:1;min-width:200px">
+        <h1 style="font-family:'Sora',sans-serif;font-size:2rem;margin:0 0 .4rem" id="nomeExibicao">${t.nome}</h1>
+        <div class="flex gap-1" style="flex-wrap:wrap">
+          <span class="score-pill">🏅 ${t.pontuacao} pts</span>
+          <span style="color:var(--text-3);font-size:.85rem;align-self:center">${t.partidas} partidas disputadas</span>
+        </div>
+      </div>
+
+      ${isAdmin() ? `
+        <div class="flex gap-1" style="flex-wrap:wrap;align-self:flex-start">
+          <button onclick="abrirEditarNome()" class="btn btn-secundario btn-sm">✏️ Editar nome</button>
+          <button onclick="removerTime()" class="btn btn-perigo btn-sm">🗑️ Remover</button>
+        </div>` : ''}
     </div>
 
     <div id="alertaTime" class="alerta oculto"></div>
-    <div id="formEditarNome" class="card oculto" style="max-width:360px;margin-bottom:1rem">
-      <div class="card-titulo">Editar nome</div>
-      <div class="form-group"><input type="text" id="inputNome" class="input" value="${t.nome}"></div>
-      <div class="flex gap-1"><button onclick="salvarNome()" class="btn btn-primario btn-sm">Salvar</button><button onclick="fecharEditar()" class="btn btn-secundario btn-sm">Cancelar</button></div>
+
+    <!-- Form editar nome (oculto) -->
+    <div id="formEditarNome" class="card-app oculto mb-2" style="max-width:380px">
+      <div class="card-body">
+        <div class="modal-titulo" style="font-size:.95rem;margin-bottom:.75rem">Editar nome</div>
+        <div class="form-group"><input type="text" id="inputNome" class="input" value="${t.nome}"></div>
+        <div class="flex gap-1">
+          <button onclick="salvarNome()" class="btn btn-primario btn-sm">Salvar</button>
+          <button onclick="fecharEditar()" class="btn btn-secundario btn-sm">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats grid -->
+    <div class="stats-grid">
+      <div class="stat-card cool">
+        <div class="stat-icon">✅</div>
+        <div><div class="stat-label">Vitórias</div><div class="stat-value">${t.totalVitorias}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🤝</div>
+        <div><div class="stat-label">Empates</div><div class="stat-value">${t.totalEmpates}</div></div>
+      </div>
+      <div class="stat-card warm">
+        <div class="stat-icon">❌</div>
+        <div><div class="stat-label">Derrotas</div><div class="stat-value">${t.totalDerrotas}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚽</div>
+        <div><div class="stat-label">Gols marcados</div><div class="stat-value">${t.totalGolsMarcados}</div></div>
+      </div>
+      <div class="stat-card warm">
+        <div class="stat-icon">🥅</div>
+        <div><div class="stat-label">Gols sofridos</div><div class="stat-value">${t.totalGolsSofridos}</div></div>
+      </div>
+      <div class="stat-card cool">
+        <div class="stat-icon">📈</div>
+        <div><div class="stat-label">Aproveitamento</div><div class="stat-value">${t.aproveitamento}%</div></div>
+      </div>
     </div>`;
-}
-
-function abrirUploadEscudo() { document.getElementById('inputEscudo').click(); }
-
-async function uploadEscudo(input) {
-  const file = input.files[0]; if (!file) return;
-  const form = new FormData(); form.append('arquivo', file);
-  const token = getToken();
-  const resp = await fetch(`/api/times/${id}/escudo`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: form });
-  if (resp.ok) {
-    const d = await resp.json();
-    document.getElementById('escudoImg').src = d.escudoUrl + '?t=' + Date.now();
-    mostrarAlerta('Escudo atualizado!', 'ok');
-  } else mostrarAlerta('Erro ao enviar escudo.', 'erro');
 }
 
 function abrirEditarNome() { document.getElementById('formEditarNome').classList.remove('oculto'); }
 function fecharEditar()    { document.getElementById('formEditarNome').classList.add('oculto'); }
 
 async function salvarNome() {
-  const nome = document.getElementById('inputNome').value.trim(); if (!nome) return;
-  const resp = await apiFetch(`/api/times/${id}`, { method: 'PUT', body: JSON.stringify({ nome }) });
-  if (resp?.ok) { document.getElementById('nomeTime').textContent = nome; fecharEditar(); mostrarAlerta('Nome atualizado!', 'ok'); }
-  else mostrarAlerta('Erro ao atualizar nome.', 'erro');
+  const nome = document.getElementById('inputNome').value.trim();
+  if (!nome) return;
+  const resp = await apiFetch(`/api/times/${id}`, { method:'PUT', body:JSON.stringify({ nome }) });
+  if (resp?.ok) {
+    document.getElementById('nomeExibicao').textContent = nome;
+    document.getElementById('escudoLetra').textContent  = nome.charAt(0).toUpperCase();
+    fecharEditar();
+    mostrarAlerta('Nome atualizado com sucesso.', 'ok');
+  } else mostrarAlerta('Erro ao atualizar nome.', 'erro');
+}
+
+async function uploadEscudo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('arquivo', file);
+  const resp = await fetch(`/api/times/${id}/escudo`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${getToken()}` },
+    body: form,
+  });
+  if (resp.ok) {
+    const d = await resp.json();
+    const img = document.getElementById('escudoImg');
+    img.src = d.escudoUrl + '?t=' + Date.now();
+    img.style.display = '';
+    document.getElementById('escudoLetra').style.display = 'none';
+    mostrarAlerta('Escudo atualizado!', 'ok');
+  } else mostrarAlerta('Erro ao enviar escudo.', 'erro');
 }
 
 async function removerTime() {
-  if (!confirm('Remover este time? Esta ação não pode ser desfeita.')) return;
-  const resp = await apiFetch(`/api/times/${id}`, { method: 'DELETE' });
+  if (!confirm(`Remover o time "${document.getElementById('nomeExibicao')?.textContent}"? Esta ação não pode ser desfeita.`)) return;
+  const resp = await apiFetch(`/api/times/${id}`, { method:'DELETE' });
   if (resp?.ok) location.href = '/index.html';
   else mostrarAlerta('Erro ao remover time.', 'erro');
 }
@@ -99,7 +168,7 @@ function mostrarAlerta(msg, tipo) {
   el.className = `alerta alerta-${tipo}`;
   el.textContent = msg;
   el.classList.remove('oculto');
-  setTimeout(() => el.classList.add('oculto'), 3000);
+  setTimeout(() => el.classList.add('oculto'), 3500);
 }
 
 carregar();

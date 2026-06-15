@@ -10,31 +10,32 @@
 <div class="auth-wrap">
   <div class="auth-box">
     <div class="auth-logo">
-      <div class="icon">⚽</div>
-      <h1>Sistema Esporte</h1>
-      <p class="texto-muted" style="margin-top:.3rem">Acesse sua conta</p>
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--gradient-primary);display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:var(--shadow-glow)">⚽</div>
+      <h1 style="margin-top:.6rem">Sistema Esporte</h1>
+      <p class="texto-muted-2" style="margin-top:.25rem">Acesse sua conta para continuar</p>
     </div>
 
     <div id="alerta" class="alerta alerta-erro oculto"></div>
 
-    <form id="formLogin" onsubmit="login(event)">
+    <form onsubmit="login(event)">
       <div class="form-group">
         <label class="form-label">Usuário</label>
         <input type="text" id="usuario" class="input" placeholder="Nome de usuário" required autocomplete="username">
       </div>
       <div class="form-group">
-        <label class="form-label" style="display:flex;justify-content:space-between">
-          Senha
-          <a href="/esqueci-senha.html" style="font-size:.82rem">Esqueceu a senha?</a>
-        </label>
+        <div class="flex justify-between" style="margin-bottom:.4rem">
+          <label class="form-label" style="margin-bottom:0">Senha</label>
+          <a href="/esqueci-senha.html" style="font-size:.82rem;color:var(--text-3)">Esqueceu a senha?</a>
+        </div>
         <input type="password" id="senha" class="input" placeholder="••••••••" required autocomplete="current-password">
       </div>
-      <button type="submit" class="btn btn-primario w-100" style="margin-top:.5rem">Entrar</button>
+      <button type="submit" id="btnLogin" class="btn btn-primario w-100" style="margin-top:.25rem">Entrar</button>
     </form>
 
-    <p class="centralizado texto-muted mt-2">
-      Não tem conta? <a href="/registrar.html">Criar conta</a>
-    </p>
+    <div style="margin-top:1.25rem;text-align:center;padding-top:1.25rem;border-top:1px solid var(--border)">
+      <span class="texto-muted-2">Não tem conta?</span>
+      <a href="/registrar.html" style="margin-left:.4rem;font-weight:600">Criar conta</a>
+    </div>
   </div>
 </div>
 
@@ -44,14 +45,17 @@ if (isLogado()) window.location.href = '/index.html';
 
 async function login(e) {
   e.preventDefault();
-  const btn = e.submitter;
+  const btn = document.getElementById('btnLogin');
   btn.disabled = true;
   btn.textContent = 'Entrando…';
 
   const resp = await fetch('/api/autenticacao/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nomeUsuario: document.getElementById('usuario').value, senha: document.getElementById('senha').value }),
+    body: JSON.stringify({
+      nomeUsuario: document.getElementById('usuario').value,
+      senha:       document.getElementById('senha').value,
+    }),
   });
 
   const data = await resp.json();
@@ -60,7 +64,7 @@ async function login(e) {
     window.location.href = '/index.html';
   } else {
     const el = document.getElementById('alerta');
-    el.textContent = data.erro || 'Erro ao fazer login.';
+    el.textContent = data.erro || 'Usuário ou senha inválidos.';
     el.classList.remove('oculto');
     btn.disabled = false;
     btn.textContent = 'Entrar';

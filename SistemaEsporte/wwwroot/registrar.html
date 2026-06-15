@@ -8,11 +8,11 @@
 </head>
 <body>
 <div class="auth-wrap">
-  <div class="auth-box">
+  <div class="auth-box" style="max-width:440px">
     <div class="auth-logo">
-      <div class="icon">⚽</div>
-      <h1>Sistema Esporte</h1>
-      <p class="texto-muted" style="margin-top:.3rem">Criar nova conta</p>
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--gradient-primary);display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:var(--shadow-glow)">⚽</div>
+      <h1 style="margin-top:.6rem">Sistema Esporte</h1>
+      <p class="texto-muted-2" style="margin-top:.25rem">Crie sua conta gratuitamente</p>
     </div>
 
     <div id="alerta" class="alerta oculto"></div>
@@ -20,30 +20,33 @@
     <form id="formRegistrar" onsubmit="registrar(event)">
       <div class="form-group">
         <label class="form-label">Usuário</label>
-        <input type="text" id="usuario" class="input" placeholder="Nome de usuário" required>
+        <input type="text" id="usuario" class="input" placeholder="Escolha um nome de usuário" required>
       </div>
       <div class="form-group">
         <label class="form-label">E-mail</label>
         <input type="email" id="email" class="input" placeholder="seu@email.com" required>
       </div>
-      <div class="form-group">
-        <label class="form-label">Senha</label>
-        <input type="password" id="senha" class="input" placeholder="Mínimo 4 caracteres" required>
+      <div class="flex gap-1">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Senha</label>
+          <input type="password" id="senha" class="input" placeholder="Mín. 4 caracteres" required>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Confirmar senha</label>
+          <input type="password" id="confirmarSenha" class="input" placeholder="Repita a senha" required>
+        </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Confirmar senha</label>
-        <input type="password" id="confirmarSenha" class="input" placeholder="Repita a senha" required>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Nome do seu time <span class="texto-muted">(opcional)</span></label>
+        <label class="form-label">Nome do seu time <span class="texto-muted-2">(opcional)</span></label>
         <input type="text" id="nomeTime" class="input" placeholder="Ex: Meu Time FC">
       </div>
-      <button type="submit" class="btn btn-primario w-100" style="margin-top:.5rem">Criar conta</button>
+      <button type="submit" id="btnRegistrar" class="btn btn-primario w-100" style="margin-top:.25rem">Criar conta</button>
     </form>
 
-    <p class="centralizado texto-muted mt-2">
-      Já tem conta? <a href="/login.html">Entrar</a>
-    </p>
+    <div style="margin-top:1.25rem;text-align:center;padding-top:1.25rem;border-top:1px solid var(--border)">
+      <span class="texto-muted-2">Já tem conta?</span>
+      <a href="/login.html" style="margin-left:.4rem;font-weight:600">Entrar</a>
+    </div>
   </div>
 </div>
 
@@ -51,7 +54,7 @@
 <script>
 async function registrar(e) {
   e.preventDefault();
-  const btn = e.submitter;
+  const btn = document.getElementById('btnRegistrar');
   btn.disabled = true;
   btn.textContent = 'Criando…';
 
@@ -68,10 +71,11 @@ async function registrar(e) {
   });
 
   const data = await resp.json();
-  const el = document.getElementById('alerta');
+  const el   = document.getElementById('alerta');
+
   if (resp.ok) {
     el.className = 'alerta alerta-ok';
-    el.textContent = data.mensagem || 'Conta criada! Verifique seu e-mail.';
+    el.innerHTML = `✅ ${data.mensagem || 'Conta criada! Verifique seu e-mail para ativar.'}`;
     el.classList.remove('oculto');
     document.getElementById('formRegistrar').style.display = 'none';
   } else {

@@ -10,11 +10,13 @@
 <div class="auth-wrap">
   <div class="auth-box">
     <div class="auth-logo">
-      <div class="icon">🔒</div>
-      <h1>Sistema Esporte</h1>
-      <p class="texto-muted" style="margin-top:.3rem">Nova senha</p>
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--gradient-primary);display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:var(--shadow-glow)">🔒</div>
+      <h1 style="margin-top:.6rem">Nova senha</h1>
+      <p class="texto-muted-2" style="margin-top:.25rem">Escolha uma nova senha para sua conta</p>
     </div>
+
     <div id="alerta" class="alerta oculto"></div>
+
     <form id="form" onsubmit="redefinir(event)">
       <div class="form-group">
         <label class="form-label">Nova senha</label>
@@ -24,41 +26,58 @@
         <label class="form-label">Confirmar nova senha</label>
         <input type="password" id="confirmarSenha" class="input" placeholder="Repita a senha" required>
       </div>
-      <button type="submit" class="btn btn-primario w-100">Redefinir senha</button>
+      <button type="submit" id="btnSalvar" class="btn btn-primario w-100">Redefinir senha</button>
     </form>
-    <p class="centralizado texto-muted mt-2"><a href="/login.html">Voltar ao login</a></p>
+
+    <div style="margin-top:1.25rem;text-align:center;padding-top:1.25rem;border-top:1px solid var(--border)">
+      <a href="/login.html" style="color:var(--text-3);font-size:.88rem">← Voltar ao login</a>
+    </div>
   </div>
 </div>
+
 <script src="/auth.js"></script>
 <script>
 const token = new URLSearchParams(location.search).get('token');
+
 if (!token) {
-  document.getElementById('alerta').className = 'alerta alerta-erro';
-  document.getElementById('alerta').textContent = 'Link inválido.';
-  document.getElementById('alerta').classList.remove('oculto');
+  const el = document.getElementById('alerta');
+  el.className = 'alerta alerta-erro';
+  el.textContent = 'Link inválido ou expirado. Solicite um novo.';
+  el.classList.remove('oculto');
   document.getElementById('form').style.display = 'none';
 }
 
 async function redefinir(e) {
   e.preventDefault();
-  const btn = e.submitter; btn.disabled = true; btn.textContent = 'Salvando…';
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
   const resp = await fetch('/api/autenticacao/redefinir-senha', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      token, novaSenha: document.getElementById('novaSenha').value,
+      token,
+      novaSenha:      document.getElementById('novaSenha').value,
       confirmarSenha: document.getElementById('confirmarSenha').value,
     }),
   });
+
   const data = await resp.json();
-  const el = document.getElementById('alerta');
+  const el   = document.getElementById('alerta');
+
   if (resp.ok) {
-    el.className = 'alerta alerta-ok'; el.textContent = data.mensagem;
+    el.className = 'alerta alerta-ok';
+    el.innerHTML = `✅ ${data.mensagem} <a href="/login.html" style="color:var(--accent-2);font-weight:600">Ir para o login</a>`;
+    el.classList.remove('oculto');
     document.getElementById('form').style.display = 'none';
   } else {
-    el.className = 'alerta alerta-erro'; el.textContent = data.erro;
-    btn.disabled = false; btn.textContent = 'Redefinir senha';
+    el.className = 'alerta alerta-erro';
+    el.textContent = data.erro || 'Erro ao redefinir senha.';
+    el.classList.remove('oculto');
+    btn.disabled = false;
+    btn.textContent = 'Redefinir senha';
   }
-  el.classList.remove('oculto');
 }
 </script>
 </body>

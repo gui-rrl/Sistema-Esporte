@@ -7,30 +7,37 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<nav class="navbar" id="navbar"></nav>
+<nav class="app-navbar" id="navbar"></nav>
 
-<main class="container pagina">
-  <!-- Stats gerais -->
+<main class="container page">
+
+  <!-- Stats -->
   <div class="stats-grid" id="statsGerais"></div>
 
-  <!-- Ranking -->
-  <div class="flex justify-between items-center mb-2">
-    <h1 class="pagina-titulo" style="margin-bottom:0">⚽ Ranking Geral</h1>
+  <!-- Header da tabela -->
+  <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
+    <h1 class="page-title">
+      <span class="icon-badge">🏅</span>
+      Ranking Geral
+    </h1>
     <div class="flex gap-1 items-center">
-      <input type="search" id="busca" class="input" style="width:260px" placeholder="Buscar time...">
-      <button id="btnNovoTime" class="btn btn-primario oculto">+ Time</button>
+      <div style="position:relative">
+        <span style="position:absolute;left:.8rem;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none">🔍</span>
+        <input type="search" id="busca" class="input" style="width:260px;padding-left:2.2rem" placeholder="Buscar time...">
+      </div>
+      <button id="btnNovoTime" class="btn btn-primario oculto">+ Novo time</button>
     </div>
   </div>
 
-  <div class="card">
+  <div class="card-app">
     <div class="tabela-wrap">
-      <table id="tabelaRanking">
+      <table class="table-app" id="tabelaRanking">
         <thead>
           <tr>
-            <th class="col-num">#</th>
+            <th class="col-num" style="width:52px">#</th>
             <th>Time</th>
             <th class="col-num">Pts</th>
-            <th class="col-num">P</th>
+            <th class="col-num">PJ</th>
             <th class="col-num">V</th>
             <th class="col-num">E</th>
             <th class="col-num">D</th>
@@ -40,10 +47,11 @@
             <th class="col-num">%</th>
           </tr>
         </thead>
-        <tbody id="corpoRanking"></tbody>
+        <tbody id="corpoRanking">
+          <tr><td colspan="11" style="text-align:center;color:var(--text-3);padding:2.5rem">Carregando...</td></tr>
+        </tbody>
       </table>
     </div>
-    <p id="semTimes" class="centralizado texto-muted mt-2 oculto">Nenhum time cadastrado ainda.</p>
   </div>
 </main>
 
@@ -76,10 +84,22 @@ async function carregarDados() {
   if (rPainel?.ok) {
     const d = await rPainel.json();
     document.getElementById('statsGerais').innerHTML = `
-      <div class="stat-card"><div class="stat-valor">${d.totalTimes}</div><div class="stat-label">Times</div></div>
-      <div class="stat-card"><div class="stat-valor">${d.totalPartidas}</div><div class="stat-label">Partidas</div></div>
-      <div class="stat-card"><div class="stat-valor">${d.totalTorneios}</div><div class="stat-label">Torneios</div></div>
-      <div class="stat-card"><div class="stat-valor">${d.torneiosAtivos}</div><div class="stat-label">Em andamento</div></div>`;
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div><div class="stat-label">Times</div><div class="stat-value">${d.totalTimes}</div></div>
+      </div>
+      <div class="stat-card warm">
+        <div class="stat-icon">⚽</div>
+        <div><div class="stat-label">Partidas</div><div class="stat-value">${d.totalPartidas}</div></div>
+      </div>
+      <div class="stat-card cool">
+        <div class="stat-icon">🏆</div>
+        <div><div class="stat-label">Torneios</div><div class="stat-value">${d.totalTorneios}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🔥</div>
+        <div><div class="stat-label">Em andamento</div><div class="stat-value">${d.torneiosAtivos}</div></div>
+      </div>`;
   }
 
   if (rTimes?.ok) {
@@ -90,27 +110,40 @@ async function carregarDados() {
   if (isAdmin()) document.getElementById('btnNovoTime').classList.remove('oculto');
 }
 
+function badgePos(pos) {
+  const cls = pos === 1 ? 'rank-1' : pos === 2 ? 'rank-2' : pos === 3 ? 'rank-3' : '';
+  return `<span class="rank-badge ${cls}">${pos}</span>`;
+}
+
 function renderizarRanking(times) {
   const corpo = document.getElementById('corpoRanking');
-  document.getElementById('semTimes').classList.toggle('oculto', times.length > 0);
+  if (!times.length) {
+    corpo.innerHTML = `<tr><td colspan="11">
+      <div class="empty-state">
+        <div class="icon">⚽</div>
+        <div class="title">Nenhum time cadastrado</div>
+        <div>Crie o primeiro time para começar</div>
+      </div></td></tr>`;
+    return;
+  }
   corpo.innerHTML = times.map(t => `
     <tr>
-      <td class="col-num">${t.posicao}</td>
+      <td class="col-num">${badgePos(t.posicao)}</td>
       <td>
         <div class="time-nome">
           <img class="escudo" src="${t.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
           <a href="/time.html?id=${t.id}">${t.nome}</a>
         </div>
       </td>
-      <td class="col-num"><strong style="color:var(--verde-claro)">${t.pontuacao}</strong></td>
+      <td class="col-num"><span class="score-pill">${t.pontuacao}</span></td>
       <td class="col-num">${t.partidas}</td>
-      <td class="col-num">${t.totalVitorias}</td>
-      <td class="col-num">${t.totalEmpates}</td>
-      <td class="col-num">${t.totalDerrotas}</td>
+      <td class="col-num" style="color:var(--success);font-weight:600">${t.totalVitorias}</td>
+      <td class="col-num" style="color:var(--warning)">${t.totalEmpates}</td>
+      <td class="col-num" style="color:var(--danger)">${t.totalDerrotas}</td>
       <td class="col-num">${t.totalGolsMarcados}</td>
       <td class="col-num">${t.totalGolsSofridos}</td>
       <td class="col-num">${t.saldoGols >= 0 ? '+' + t.saldoGols : t.saldoGols}</td>
-      <td class="col-num">${t.aproveitamento}%</td>
+      <td class="col-num" style="color:var(--text-2)">${t.aproveitamento}%</td>
     </tr>`).join('');
 }
 
@@ -120,9 +153,9 @@ document.getElementById('busca').addEventListener('input', e => {
 });
 
 document.getElementById('btnNovoTime').addEventListener('click', () => {
-  document.getElementById('modalNovoTime').classList.remove('oculto');
   document.getElementById('inputNomeTime').value = '';
   document.getElementById('erroNovoTime').classList.add('oculto');
+  document.getElementById('modalNovoTime').classList.remove('oculto');
 });
 
 function fecharModal() { document.getElementById('modalNovoTime').classList.add('oculto'); }

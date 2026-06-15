@@ -7,10 +7,12 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<nav class="navbar" id="navbar"></nav>
+<nav class="app-navbar" id="navbar"></nav>
 
-<main class="container pagina">
-  <div id="conteudo"><p class="texto-muted">Carregando...</p></div>
+<main class="container page">
+  <div id="conteudo">
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+  </div>
 </main>
 
 <!-- Modal resultado -->
@@ -24,19 +26,19 @@
         <label class="form-label" id="labelT1">Time 1</label>
         <input type="number" id="resGolsT1" class="input" value="0" min="0">
       </div>
-      <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--texto-sec)">×</span>
+      <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--text-3);font-size:1.1rem">×</span>
       <div class="form-group" style="flex:1;margin-bottom:0">
         <label class="form-label" id="labelT2">Time 2</label>
         <input type="number" id="resGolsT2" class="input" value="0" min="0">
       </div>
     </div>
     <div id="campoVolta" class="oculto">
-      <p class="texto-muted mb-1" style="font-size:.85rem">Jogo da volta:</p>
+      <p class="texto-muted-2 mb-1">Jogo da volta:</p>
       <div class="flex gap-1 items-center mb-2">
         <div class="form-group" style="flex:1;margin-bottom:0">
           <input type="number" id="resGolsT1V" class="input" value="0" min="0">
         </div>
-        <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--texto-sec)">×</span>
+        <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--text-3)">×</span>
         <div class="form-group" style="flex:1;margin-bottom:0">
           <input type="number" id="resGolsT2V" class="input" value="0" min="0">
         </div>
@@ -49,18 +51,22 @@
   </div>
 </div>
 
-<!-- Modal add time -->
+<!-- Modal add times (checkbox) -->
 <div class="modal-overlay oculto" id="modalAddTime">
-  <div class="modal">
-    <div class="modal-titulo">Inscrever Time</div>
+  <div class="modal" style="max-width:520px">
+    <div class="modal-titulo">Inscrever Times</div>
     <div id="erroAddTime" class="alerta alerta-erro oculto"></div>
-    <div class="form-group">
-      <label class="form-label">Selecione o time</label>
-      <select id="selAddTime" class="select"></select>
+    <div class="flex justify-between items-center mb-1">
+      <span class="texto-muted-2" id="contadorSel">0 selecionados</span>
+      <div class="flex gap-1">
+        <button onclick="selecionarTodos(true)"  class="btn btn-secundario btn-sm">Todos</button>
+        <button onclick="selecionarTodos(false)" class="btn btn-secundario btn-sm">Nenhum</button>
+      </div>
     </div>
+    <div id="listaCheckTimes" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:.5rem;display:flex;flex-direction:column;gap:.2rem"></div>
     <div class="modal-acoes">
       <button onclick="fecharModalAdd()" class="btn btn-secundario">Cancelar</button>
-      <button onclick="addTime()" class="btn btn-primario">Inscrever</button>
+      <button onclick="addTimes()" class="btn btn-primario">Inscrever selecionados</button>
     </div>
   </div>
 </div>
@@ -73,46 +79,63 @@ if (!id) location.href = '/torneios.html';
 
 let torneioAtual = null;
 const FORMATOS = ['Pontos Corridos','Copa','Mata-Mata Simples','Mata-Mata Ida e Volta'];
-const STATUS   = { 0:'Preparação', 1:'Em Andamento', 2:'Finalizado' };
-const FASES    = { 'Final':'Final', 'Semifinal':'Semifinal', 'QuartasDeFinall':'Quartas de Final',
-                   'OitavasDeFinall':'Oitavas de Final', 'Terceiro':'3º Lugar', 'RodadaLiga':'Liga' };
+const FASES    = {
+  Final:'Final', Semifinal:'Semifinal',
+  QuartasDeFinall:'Quartas de Final', OitavasDeFinall:'Oitavas de Final',
+  Terceiro:'3º Lugar', RodadaLiga:'Liga'
+};
 
 async function carregar() {
   const resp = await apiFetch(`/api/torneios/${id}`);
-  if (!resp?.ok) { document.getElementById('conteudo').innerHTML = '<p class="texto-muted">Torneio não encontrado.</p>'; return; }
+  if (!resp?.ok) {
+    document.getElementById('conteudo').innerHTML = '<div class="empty-state"><div class="icon">❌</div><div class="title">Torneio não encontrado</div></div>';
+    return;
+  }
   torneioAtual = await resp.json();
   renderizar();
 }
 
-function nomeTime(tt) { return tt?.nome || tt?.nomeExibicao || 'A definir'; }
+function statusPill(s) {
+  const m = { 0:['prep','Preparação'], 1:['live','Em Andamento'], 2:['done','Finalizado'] };
+  const [cls, label] = m[s] ?? ['done','?'];
+  return `<span class="status-pill ${cls}">${label}</span>`;
+}
 
 function renderizar() {
   const t = torneioAtual;
   const admin = isAdmin();
   const podeGerar = admin && t.status === 0 && t.times.length >= 2;
-  const podeMM    = admin && t.formato === 1 && t.status === 1 && t.partidas.every(p => p.fase.startsWith('Grupo') ? p.concluida : true);
+  const podeMM    = admin && t.formato === 1 && t.status === 1 &&
+    t.partidas.filter(p => p.fase.startsWith('Grupo')).every(p => p.concluida);
 
   let html = `
+    <div class="flex items-center gap-1 mb-2" style="flex-wrap:wrap">
+      <a href="/torneios.html" class="texto-muted-2" style="font-size:.82rem">← Torneios</a>
+    </div>
     <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
       <div>
-        <a href="/torneios.html" class="texto-muted" style="font-size:.85rem">← Torneios</a>
-        <h1 class="pagina-titulo" style="margin:.3rem 0 .1rem">${t.nome}</h1>
-        <span class="badge badge-${t.status===0?'amarelo':t.status===1?'verde':'cinza'}">${STATUS[t.status]}</span>
-        <span class="texto-muted" style="margin-left:.5rem;font-size:.85rem">${FORMATOS[t.formato]}</span>
+        <h1 class="page-title" style="margin-bottom:.5rem">
+          <span class="icon-badge">🏆</span>${t.nome}
+        </h1>
+        <div class="flex items-center gap-1" style="flex-wrap:wrap">
+          ${statusPill(t.status)}
+          <span class="texto-muted-2">${FORMATOS[t.formato]}</span>
+          ${t.status === 1 ? `<span class="texto-muted-2">· Rodada ${t.rodadaAtual || ''}/${t.totalRodadas || ''}</span>` : ''}
+        </div>
       </div>
       <div class="flex gap-1" style="flex-wrap:wrap">
         ${podeGerar ? `<button onclick="gerarTorneio()" class="btn btn-primario">⚡ Gerar torneio</button>` : ''}
-        ${podeMM ? `<button onclick="gerarMataMata()" class="btn btn-primario">⚡ Gerar mata-mata</button>` : ''}
-        ${admin && t.status === 0 ? `<button onclick="abrirAddTime()" class="btn btn-secundario">+ Inscrever time</button>` : ''}
+        ${podeMM    ? `<button onclick="gerarMataMata()" class="btn btn-primario">⚡ Gerar mata-mata</button>` : ''}
+        ${admin && t.status === 0 ? `<button onclick="abrirAddTime()" class="btn btn-secundario">+ Inscrever times</button>` : ''}
       </div>
     </div>
     <div id="alertaTorneio" class="alerta oculto"></div>`;
 
-  // Times / Classificação
-  if (t.formato === 0 || (t.formato === 1 && t.status > 0)) {
-    html += renderTabelaTimes(t.times, t.formato === 1);
-  } else if (t.status === 0) {
+  // Times
+  if (t.status === 0) {
     html += renderTimesInscritos(t.times);
+  } else {
+    html += renderTabelaTimes(t.times, t.formato === 1 || t.formato === 0);
   }
 
   // Partidas
@@ -125,155 +148,210 @@ function renderizar() {
   document.getElementById('conteudo').innerHTML = html;
 }
 
+// ===== Renderização times inscritos (pills) =====
 function renderTimesInscritos(times) {
-  if (!times.length) return `<div class="card mb-2"><p class="texto-muted centralizado">Nenhum time inscrito ainda.</p></div>`;
-  return `<div class="card mb-2">
-    <div class="card-titulo">Times inscritos (${times.length})</div>
-    <div style="display:flex;flex-wrap:wrap;gap:.5rem">
-      ${times.map(tt => `<div class="flex items-center gap-1" style="background:var(--verde-bg);border:1px solid var(--verde-borda);border-radius:8px;padding:.35rem .7rem">
-        <img class="escudo" style="width:24px;height:24px" src="${tt.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
-        <span style="font-size:.88rem">${tt.nome}</span>
-        ${isAdmin() && torneioAtual.status===0 ? `<button onclick="removerTimeInscrito(${tt.id})" style="background:none;border:none;color:var(--perigo);cursor:pointer;padding:0 0 0 .3rem">×</button>` : ''}
-      </div>`).join('')}
-    </div>
-  </div>`;
-}
+  const header = `<div class="card-app mb-2">
+    <div class="card-header">👥 Times inscritos <span style="color:var(--text-3);font-weight:400">(${times.length})</span></div>`;
 
-function renderTabelaTimes(times, comGrupo) {
-  const cols = comGrupo ? '' : '';
-  return `<div class="card mb-2">
-    <div class="card-titulo">Classificação</div>
-    <div class="tabela-wrap"><table>
-      <thead><tr>
-        <th class="col-num">#</th>
-        ${comGrupo ? '<th>Grupo</th>' : ''}
-        <th>Time</th>
-        <th class="col-num">Pts</th><th class="col-num">PJ</th>
-        <th class="col-num">V</th><th class="col-num">E</th><th class="col-num">D</th>
-        <th class="col-num">GM</th><th class="col-num">GS</th><th class="col-num">SG</th>
-      </tr></thead>
-      <tbody>${times.map(tt => `<tr>
-        <td class="col-num">${tt.posicao}</td>
-        ${comGrupo ? `<td><span class="badge badge-cinza">Grupo ${tt.grupo||'?'}</span></td>` : ''}
-        <td><div class="time-nome">
-          <img class="escudo" src="${tt.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
-          <a href="/time.html?id=${tt.timeId}">${tt.nome}</a>
-        </div></td>
-        <td class="col-num"><strong style="color:var(--verde-claro)">${tt.pontos}</strong></td>
-        <td class="col-num">${tt.partidasJogadas}</td>
-        <td class="col-num">${tt.vitorias}</td><td class="col-num">${tt.empates}</td><td class="col-num">${tt.derrotas}</td>
-        <td class="col-num">${tt.golsMarcados}</td><td class="col-num">${tt.golsSofridos}</td>
-        <td class="col-num">${tt.saldoGols>=0?'+'+tt.saldoGols:tt.saldoGols}</td>
-      </tr>`).join('')}
-      </tbody>
-    </table></div>
-  </div>`;
-}
+  if (!times.length) return header + `
+    <div class="card-body">
+      <div class="empty-state" style="padding:1.5rem">
+        <div class="icon" style="font-size:2rem">👥</div>
+        <div class="title" style="font-size:.95rem">Nenhum time inscrito</div>
+        <div style="font-size:.82rem">Clique em "Inscrever times" para adicionar</div>
+      </div>
+    </div></div>`;
 
-function renderRodadas(t) {
-  const porRodada = {};
-  t.partidas.forEach(p => { (porRodada[p.rodada] = porRodada[p.rodada]||[]).push(p); });
-  return Object.entries(porRodada).map(([r, ps]) => `
-    <div class="card mb-2">
-      <div class="card-titulo">Rodada ${r}</div>
-      ${ps.map(p => renderLinhaPartida(p, t)).join('')}
-    </div>`).join('');
-}
-
-function renderGrupos(t) {
-  const grupos = {};
-  t.partidas.filter(p => p.fase.startsWith('Grupo')).forEach(p => { (grupos[p.fase]=grupos[p.fase]||[]).push(p); });
-  if (!Object.keys(grupos).length) return '';
-  return `<div class="card mb-2">
-    <div class="card-titulo">Fase de Grupos</div>
-    <div class="grupos-grid">${Object.entries(grupos).map(([fase, ps]) => `
-      <div>
-        <div style="font-size:.85rem;font-weight:600;color:var(--texto-sec);margin-bottom:.5rem">Grupo ${fase.replace('Grupo','')}</div>
-        ${ps.map(p => renderLinhaPartida(p, t)).join('')}
-      </div>`).join('')}
-    </div>
-  </div>`;
-}
-
-function renderChaveamento(t) {
-  const fases = ['OitavasDeFinall','QuartasDeFinall','Semifinal','Terceiro','Final'];
-  const partidasPorFase = {};
-  t.partidas.filter(p => fases.includes(p.fase) || (!p.fase.startsWith('Grupo') && p.fase !== 'RodadaLiga'))
-    .forEach(p => { (partidasPorFase[p.fase]=partidasPorFase[p.fase]||[]).push(p); });
-  if (!Object.keys(partidasPorFase).length) return '';
-  const ordem = fases.filter(f => partidasPorFase[f]);
-  return `<div class="card mb-2">
-    <div class="card-titulo">Chaveamento</div>
-    <div class="chaveamento">
-      ${ordem.map(fase => `
-        <div class="rodada">
-          <div class="rodada-titulo">${FASES[fase]||fase}</div>
-          ${(partidasPorFase[fase]||[]).map(p => renderPartidaChave(p, t)).join('')}
+  return header + `
+    <div class="times-inscritos">
+      ${times.map(tt => `
+        <div class="time-pill">
+          <img src="${tt.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+          <span>${tt.nome}</span>
+          ${isAdmin() && torneioAtual.status === 0
+            ? `<button class="btn-remover" onclick="removerTimeInscrito(${tt.id})" title="Remover">✕</button>`
+            : ''}
         </div>`).join('')}
     </div>
   </div>`;
 }
 
-function nomeDoTime(tt, times) {
-  if (!tt) return null;
-  const found = times.find(x => x.id === tt);
-  return found ? found.nome : 'A definir';
+// ===== Tabela de classificação =====
+function renderTabelaTimes(times, comGrupo) {
+  if (!times.length) return '';
+  return `<div class="card-app mb-2">
+    <div class="card-header">📊 Classificação</div>
+    <div class="tabela-wrap"><table class="table-app">
+      <thead><tr>
+        <th class="col-num" style="width:48px">#</th>
+        ${comGrupo && torneioAtual.formato === 1 ? '<th style="width:80px">Grupo</th>' : ''}
+        <th>Time</th>
+        <th class="col-num">Pts</th><th class="col-num">PJ</th>
+        <th class="col-num">V</th><th class="col-num">E</th><th class="col-num">D</th>
+        <th class="col-num">GM</th><th class="col-num">GS</th><th class="col-num">SG</th>
+      </tr></thead>
+      <tbody>${times.map((tt, i) => {
+        const pos = i + 1;
+        const badge = pos <= 3
+          ? `<span class="rank-badge rank-${pos}">${pos}</span>`
+          : `<span class="rank-badge">${pos}</span>`;
+        return `<tr>
+          <td class="col-num">${badge}</td>
+          ${comGrupo && torneioAtual.formato === 1 ? `<td><span class="status-pill done" style="font-size:.7rem">${tt.grupo || '?'}</span></td>` : ''}
+          <td><div class="time-nome">
+            <img class="escudo" src="${tt.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+            <a href="/time.html?id=${tt.timeId}">${tt.nome}</a>
+          </div></td>
+          <td class="col-num"><span class="score-pill">${tt.pontos}</span></td>
+          <td class="col-num">${tt.partidasJogadas}</td>
+          <td class="col-num" style="color:var(--success);font-weight:600">${tt.vitorias}</td>
+          <td class="col-num" style="color:var(--warning)">${tt.empates}</td>
+          <td class="col-num" style="color:var(--danger)">${tt.derrotas}</td>
+          <td class="col-num">${tt.golsMarcados}</td>
+          <td class="col-num">${tt.golsSofridos}</td>
+          <td class="col-num">${tt.saldoGols >= 0 ? '+' + tt.saldoGols : tt.saldoGols}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+// ===== Rodadas (liga) =====
+function renderRodadas(t) {
+  const porRodada = {};
+  t.partidas.forEach(p => { (porRodada[p.rodada] = porRodada[p.rodada] || []).push(p); });
+  return Object.entries(porRodada).map(([r, ps]) => `
+    <div class="card-app mb-2">
+      <div class="card-header">🗓 Rodada ${r}</div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:.5rem">
+        ${ps.map(p => renderLinhaPartida(p, t)).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// ===== Grupos (copa) =====
+function renderGrupos(t) {
+  const grupos = {};
+  t.partidas.filter(p => p.fase.startsWith('Grupo')).forEach(p => {
+    (grupos[p.fase] = grupos[p.fase] || []).push(p);
+  });
+  if (!Object.keys(grupos).length) return '';
+  return `<div class="card-app mb-2">
+    <div class="card-header">⚽ Fase de Grupos</div>
+    <div class="card-body">
+      <div class="grupos-grid">
+        ${Object.entries(grupos).map(([fase, ps]) => `
+          <div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem">
+              Grupo ${fase.replace('Grupo','')}
+            </div>
+            ${ps.map(p => renderLinhaPartida(p, t)).join('')}
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ===== Chaveamento =====
+function renderChaveamento(t) {
+  const ordemFases = ['OitavasDeFinall','QuartasDeFinall','Semifinal','Terceiro','Final'];
+  const porFase = {};
+  t.partidas.filter(p => ordemFases.includes(p.fase))
+    .forEach(p => { (porFase[p.fase] = porFase[p.fase] || []).push(p); });
+  const fases = ordemFases.filter(f => porFase[f]);
+  if (!fases.length) return '';
+  return `<div class="card-app mb-2">
+    <div class="card-header">🥊 Chaveamento</div>
+    <div class="card-body">
+      <div class="chaveamento">
+        ${fases.map(fase => `
+          <div class="rodada">
+            <div class="rodada-titulo">${FASES[fase] || fase}</div>
+            ${(porFase[fase] || []).map(p => renderPartidaChave(p, t)).join('')}
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ===== Helpers de partida =====
+function nomeDoTime(ttId, times) {
+  if (!ttId) return null;
+  return times.find(x => x.id === ttId)?.nome || null;
 }
 
 function renderLinhaPartida(p, t) {
-  const t1 = nomeDoTime(p.time1Id, t.times);
-  const t2 = nomeDoTime(p.time2Id, t.times);
-  const v  = p.concluida ? (p.vencedorId === p.time1Id ? 'v1' : p.vencedorId === p.time2Id ? 'v2' : 'e') : '';
+  const n1 = nomeDoTime(p.time1Id, t.times) || 'A definir';
+  const n2 = nomeDoTime(p.time2Id, t.times) || 'A definir';
+  const v1 = p.concluida && p.vencedorId === p.time1Id;
+  const v2 = p.concluida && p.vencedorId === p.time2Id;
+  const placar = p.concluida
+    ? `<span class="score-pill">${p.golsTime1} × ${p.golsTime2}</span>`
+    : `<span class="texto-muted-2" style="font-size:.8rem">vs</span>`;
   const btn = isAdmin() && !p.concluida && !p.ehBye && p.time1Id && p.time2Id
-    ? `<button onclick="abrirRes(${p.id},'${t1||''}','${t2||''}')" class="btn btn-secundario btn-sm">+ Resultado</button>` : '';
-  return `<div class="flex items-center gap-1 mb-1" style="background:var(--verde-bg);border:1px solid var(--verde-borda);border-radius:8px;padding:.4rem .75rem">
-    <span style="${v==='v1'?'color:var(--verde-claro);font-weight:600':'color:var(--texto-primario)'}">${t1||'A definir'}</span>
-    <span style="margin:0 .4rem;color:var(--texto-sec)">${p.concluida?`<strong>${p.golsTime1} × ${p.golsTime2}</strong>`:'vs'}</span>
-    <span style="${v==='v2'?'color:var(--verde-claro);font-weight:600':'color:var(--texto-primario)'}">${t2||'A definir'}</span>
-    ${btn ? `<span style="margin-left:auto">${btn}</span>` : ''}
+    ? `<button onclick="abrirRes(${p.id},'${n1}','${n2}')" class="btn btn-secundario btn-sm" style="margin-left:auto">+ Resultado</button>`
+    : '';
+  return `<div class="partida-row">
+    <img class="escudo" style="width:26px;height:26px" src="${t.times.find(x=>x.id===p.time1Id)?.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+    <span style="${v1?'color:var(--accent);font-weight:600':'color:var(--text-1)'}">${n1}</span>
+    ${placar}
+    <span style="${v2?'color:var(--accent);font-weight:600':'color:var(--text-1)'}">${n2}</span>
+    <img class="escudo" style="width:26px;height:26px" src="${t.times.find(x=>x.id===p.time2Id)?.escudoUrl||'/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+    ${btn}
   </div>`;
 }
 
 function renderPartidaChave(p, t) {
-  const t1nome = nomeDoTime(p.time1Id, t.times);
-  const t2nome = nomeDoTime(p.time2Id, t.times);
+  const n1 = nomeDoTime(p.time1Id, t.times);
+  const n2 = nomeDoTime(p.time2Id, t.times);
+  const esc1 = t.times.find(x=>x.id===p.time1Id)?.escudoUrl || '/img/escudo-default.svg';
+  const esc2 = t.times.find(x=>x.id===p.time2Id)?.escudoUrl || '/img/escudo-default.svg';
+
   if (p.ehBye) return `<div class="partida-chave">
-    <div class="slot-time vencedor"><span>${t1nome||'BYE'}</span><span class="slot-gols">BYE</span></div>
+    <div class="slot-time vencedor">
+      <img class="escudo" style="width:22px;height:22px" src="${esc1}" onerror="this.src='/img/escudo-default.svg'">
+      <span>${n1 || 'BYE'}</span><span class="slot-gols">BYE</span>
+    </div>
     <div class="slot-time bye"><span>—</span></div>
   </div>`;
+
   const v1 = p.concluida && p.vencedorId === p.time1Id;
   const v2 = p.concluida && p.vencedorId === p.time2Id;
   const btn = isAdmin() && !p.concluida && p.time1Id && p.time2Id
-    ? `<div style="padding:.3rem .65rem"><button onclick="abrirRes(${p.id},'${t1nome||''}','${t2nome||''}')" class="btn btn-secundario btn-sm w-100">+ Resultado</button></div>` : '';
+    ? `<div style="padding:.3rem .6rem"><button onclick="abrirRes(${p.id},'${n1||''}','${n2||''}')" class="btn btn-secundario btn-sm w-100">+ Resultado</button></div>` : '';
+
   return `<div class="partida-chave">
     <div class="slot-time ${v1?'vencedor':''}">
-      <span>${t1nome||'A definir'}</span>
-      ${p.concluida?`<span class="slot-gols">${p.golsTime1}</span>`:''}
+      <img class="escudo" style="width:22px;height:22px" src="${esc1}" onerror="this.src='/img/escudo-default.svg'">
+      <span>${n1 || 'A definir'}</span>
+      ${p.concluida ? `<span class="slot-gols">${p.golsTime1}</span>` : ''}
     </div>
     <div class="slot-time ${v2?'vencedor':''}">
-      <span>${t2nome||'A definir'}</span>
-      ${p.concluida?`<span class="slot-gols">${p.golsTime2}</span>`:''}
+      <img class="escudo" style="width:22px;height:22px" src="${esc2}" onerror="this.src='/img/escudo-default.svg'">
+      <span>${n2 || 'A definir'}</span>
+      ${p.concluida ? `<span class="slot-gols">${p.golsTime2}</span>` : ''}
     </div>
     ${btn}
   </div>`;
 }
 
-// Actions
+// ===== Ações =====
 async function gerarTorneio() {
-  if (!confirm('Gerar o torneio? Isso sorteará os confrontos.')) return;
-  const resp = await apiFetch(`/api/torneios/${id}/gerar`, { method: 'POST' });
+  if (!confirm('Gerar o torneio? Os confrontos serão sorteados.')) return;
+  const resp = await apiFetch(`/api/torneios/${id}/gerar`, { method:'POST' });
   if (resp?.ok) carregar();
   else { const d = await resp?.json(); alert(d?.erro || 'Erro ao gerar.'); }
 }
 
 async function gerarMataMata() {
   if (!confirm('Gerar a fase mata-mata com os classificados?')) return;
-  const resp = await apiFetch(`/api/torneios/${id}/gerar-mata-mata`, { method: 'POST' });
+  const resp = await apiFetch(`/api/torneios/${id}/gerar-mata-mata`, { method:'POST' });
   if (resp?.ok) carregar();
   else { const d = await resp?.json(); alert(d?.erro || 'Erro.'); }
 }
 
-// Resultado
+// Modal resultado
 function abrirRes(partidaId, nomeT1, nomeT2) {
   document.getElementById('resPartidaId').value = partidaId;
   document.getElementById('labelT1').textContent = nomeT1 || 'Time 1';
@@ -286,6 +364,7 @@ function abrirRes(partidaId, nomeT1, nomeT2) {
   document.getElementById('erroRes').classList.add('oculto');
   document.getElementById('modalResultado').classList.remove('oculto');
 }
+
 function fecharModalRes() { document.getElementById('modalResultado').classList.add('oculto'); }
 
 async function salvarResultado() {
@@ -297,7 +376,7 @@ async function salvarResultado() {
     golsTime1Volta: idaVolta ? parseInt(document.getElementById('resGolsT1V').value) : null,
     golsTime2Volta: idaVolta ? parseInt(document.getElementById('resGolsT2V').value) : null,
   };
-  const resp = await apiFetch(`/api/torneios/${id}/partidas/${pid}`, { method: 'PUT', body: JSON.stringify(body) });
+  const resp = await apiFetch(`/api/torneios/${id}/partidas/${pid}`, { method:'PUT', body:JSON.stringify(body) });
   if (resp?.ok) { fecharModalRes(); carregar(); }
   else {
     const d = await resp?.json();
@@ -307,7 +386,7 @@ async function salvarResultado() {
   }
 }
 
-// Add time
+// Modal add times (checkbox)
 async function abrirAddTime() {
   const resp = await apiFetch('/api/times');
   if (!resp?.ok) return;
@@ -315,27 +394,60 @@ async function abrirAddTime() {
   const inscritos = new Set(torneioAtual.times.map(tt => tt.timeId));
   const disponiveis = todos.filter(t => !inscritos.has(t.id));
   if (!disponiveis.length) { alert('Todos os times já estão inscritos.'); return; }
-  document.getElementById('selAddTime').innerHTML = disponiveis.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+
+  document.getElementById('listaCheckTimes').innerHTML = disponiveis.map(t => `
+    <label style="display:flex;align-items:center;gap:.65rem;padding:.45rem .6rem;border-radius:8px;cursor:pointer;transition:background .12s"
+           onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background=''">
+      <input type="checkbox" value="${t.id}" class="check-time" onchange="atualizarContador()"
+             style="width:16px;height:16px;accent-color:var(--primary-2);cursor:pointer;flex-shrink:0">
+      <img src="${t.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'"
+           style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">
+      <span style="font-size:.9rem;color:var(--text-1)">${t.nome}</span>
+    </label>`).join('');
+
+  atualizarContador();
   document.getElementById('erroAddTime').classList.add('oculto');
   document.getElementById('modalAddTime').classList.remove('oculto');
 }
+
+function atualizarContador() {
+  const n = document.querySelectorAll('.check-time:checked').length;
+  document.getElementById('contadorSel').textContent = `${n} selecionado${n !== 1 ? 's' : ''}`;
+}
+
+function selecionarTodos(marcar) {
+  document.querySelectorAll('.check-time').forEach(c => c.checked = marcar);
+  atualizarContador();
+}
+
 function fecharModalAdd() { document.getElementById('modalAddTime').classList.add('oculto'); }
 
-async function addTime() {
-  const timeId = parseInt(document.getElementById('selAddTime').value);
-  const resp = await apiFetch(`/api/torneios/${id}/times`, { method: 'POST', body: JSON.stringify({ timeId }) });
-  if (resp?.ok) { fecharModalAdd(); carregar(); }
-  else {
-    const d = await resp?.json();
+async function addTimes() {
+  const selecionados = [...document.querySelectorAll('.check-time:checked')].map(c => parseInt(c.value));
+  if (!selecionados.length) {
     const el = document.getElementById('erroAddTime');
-    el.textContent = d?.erro || 'Erro ao inscrever time.';
+    el.textContent = 'Selecione ao menos um time.';
+    el.classList.remove('oculto');
+    return;
+  }
+  document.getElementById('erroAddTime').classList.add('oculto');
+  const erros = [];
+  for (const timeId of selecionados) {
+    const resp = await apiFetch(`/api/torneios/${id}/times`, { method:'POST', body:JSON.stringify({ timeId }) });
+    if (!resp?.ok) { const d = await resp?.json(); erros.push(d?.erro || `Erro time ${timeId}`); }
+  }
+  if (erros.length) {
+    const el = document.getElementById('erroAddTime');
+    el.textContent = erros.join(' | ');
     el.classList.remove('oculto');
   }
+  fecharModalAdd();
+  carregar();
 }
 
 async function removerTimeInscrito(ttId) {
   if (!confirm('Remover este time do torneio?')) return;
-  const resp = await apiFetch(`/api/torneios/${id}/times/${ttId}`, { method: 'DELETE' });
+  const resp = await apiFetch(`/api/torneios/${id}/times/${ttId}`, { method:'DELETE' });
   if (resp?.ok) carregar();
 }
 

@@ -3,41 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Esqueci a Senha — Sistema Esporte</title>
+  <title>Recuperar Senha — Sistema Esporte</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <div class="auth-wrap">
   <div class="auth-box">
     <div class="auth-logo">
-      <div class="icon">🔑</div>
-      <h1>Sistema Esporte</h1>
-      <p class="texto-muted" style="margin-top:.3rem">Recuperar senha</p>
+      <div style="width:56px;height:56px;border-radius:16px;background:var(--gradient-primary);display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;box-shadow:var(--shadow-glow)">🔑</div>
+      <h1 style="margin-top:.6rem">Recuperar senha</h1>
+      <p class="texto-muted-2" style="margin-top:.25rem">Enviaremos um link para o seu e-mail</p>
     </div>
+
     <div id="alerta" class="alerta oculto"></div>
+
     <form id="form" onsubmit="enviar(event)">
       <div class="form-group">
         <label class="form-label">E-mail cadastrado</label>
         <input type="email" id="email" class="input" placeholder="seu@email.com" required>
       </div>
-      <button type="submit" class="btn btn-primario w-100">Enviar link de recuperação</button>
+      <button type="submit" id="btnEnviar" class="btn btn-primario w-100">Enviar link de recuperação</button>
     </form>
-    <p class="centralizado texto-muted mt-2"><a href="/login.html">Voltar ao login</a></p>
+
+    <div style="margin-top:1.25rem;text-align:center;padding-top:1.25rem;border-top:1px solid var(--border)">
+      <a href="/login.html" style="color:var(--text-3);font-size:.88rem">← Voltar ao login</a>
+    </div>
   </div>
 </div>
+
 <script src="/auth.js"></script>
 <script>
 async function enviar(e) {
   e.preventDefault();
-  const btn = e.submitter; btn.disabled = true; btn.textContent = 'Enviando…';
+  const btn = document.getElementById('btnEnviar');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+
   const resp = await fetch('/api/autenticacao/esqueci-senha', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: document.getElementById('email').value }),
   });
+
   const data = await resp.json();
-  const el = document.getElementById('alerta');
+  const el   = document.getElementById('alerta');
   el.className = 'alerta alerta-ok';
-  el.textContent = data.mensagem;
+  el.innerHTML = `✅ ${data.mensagem}`;
   el.classList.remove('oculto');
   document.getElementById('form').style.display = 'none';
 }

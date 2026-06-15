@@ -7,22 +7,27 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<nav class="navbar" id="navbar"></nav>
+<nav class="app-navbar" id="navbar"></nav>
 
-<main class="container pagina">
-  <div class="flex justify-between items-center mb-2">
-    <h1 class="pagina-titulo" style="margin-bottom:0">📋 Partidas</h1>
+<main class="container page">
+  <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
+    <h1 class="page-title">
+      <span class="icon-badge">📋</span>
+      Partidas
+    </h1>
     <button id="btnRegistrar" class="btn btn-primario oculto">+ Registrar partida</button>
   </div>
 
   <div id="alertaPartida" class="alerta oculto"></div>
 
-  <div class="card">
-    <div id="listaPartidas"><p class="texto-muted centralizado">Carregando...</p></div>
-    <div class="flex justify-between items-center mt-2">
+  <div class="card-app">
+    <div id="listaPartidas">
+      <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+    </div>
+    <div class="flex justify-between items-center" style="padding:.75rem 1.25rem;border-top:1px solid var(--border)">
       <button id="btnAnterior" class="btn btn-secundario btn-sm" onclick="mudarPagina(-1)">← Anterior</button>
-      <span id="infoPagina" class="texto-muted"></span>
-      <button id="btnProxima" class="btn btn-secundario btn-sm" onclick="mudarPagina(1)">Próxima →</button>
+      <span id="infoPagina" class="texto-muted-2"></span>
+      <button id="btnProxima"  class="btn btn-secundario btn-sm" onclick="mudarPagina(1)">Próxima →</button>
     </div>
   </div>
 </main>
@@ -36,12 +41,12 @@
       <label class="form-label">Time 1</label>
       <select id="selTime1" class="select"></select>
     </div>
-    <div class="flex gap-1 items-center mb-2">
+    <div class="flex gap-1 items-center" style="margin-bottom:1rem">
       <div class="form-group" style="flex:1;margin-bottom:0">
         <label class="form-label">Gols Time 1</label>
         <input type="number" id="golsTime1" class="input" value="0" min="0">
       </div>
-      <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--texto-sec);font-size:1.2rem">×</span>
+      <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--text-3);font-size:1.2rem;padding-top:.9rem">×</span>
       <div class="form-group" style="flex:1;margin-bottom:0">
         <label class="form-label">Gols Time 2</label>
         <input type="number" id="golsTime2" class="input" value="0" min="0">
@@ -52,7 +57,7 @@
       <select id="selTime2" class="select"></select>
     </div>
     <div class="form-group">
-      <label class="form-label">Data (opcional)</label>
+      <label class="form-label">Data <span class="texto-muted-2">(opcional)</span></label>
       <input type="datetime-local" id="dataPartida" class="input">
     </div>
     <div class="modal-acoes">
@@ -69,47 +74,62 @@ renderNavbar(document.getElementById('navbar'));
 let pagina = 1;
 const POR_PAGINA = 20;
 
-if (isAdmin()) document.getElementById('btnRegistrar').classList.remove('oculto');
-document.getElementById('btnRegistrar').onclick = abrirModal;
+if (isAdmin()) {
+  document.getElementById('btnRegistrar').classList.remove('oculto');
+  document.getElementById('btnRegistrar').onclick = abrirModal;
+}
 
 async function carregarPartidas() {
   const resp = await apiFetch(`/api/partidas?pagina=${pagina}&por=${POR_PAGINA}`);
   if (!resp?.ok) return;
   const d = await resp.json();
   const total = d.total;
-  document.getElementById('infoPagina').textContent = `Página ${pagina} · ${total} partidas`;
+
+  document.getElementById('infoPagina').textContent = `${total} partida${total !== 1 ? 's' : ''} · página ${pagina}`;
   document.getElementById('btnAnterior').disabled = pagina <= 1;
   document.getElementById('btnProxima').disabled  = pagina * POR_PAGINA >= total;
 
-  if (d.partidas.length === 0) {
-    document.getElementById('listaPartidas').innerHTML = '<p class="texto-muted centralizado">Nenhuma partida registrada.</p>';
+  if (!d.partidas.length) {
+    document.getElementById('listaPartidas').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⚽</div>
+        <div class="title">Nenhuma partida registrada</div>
+        <div>As partidas registradas aparecerão aqui</div>
+      </div>`;
     return;
   }
 
   document.getElementById('listaPartidas').innerHTML = `
     <div class="tabela-wrap">
-      <table>
+      <table class="table-app">
         <thead><tr>
-          <th>Time 1</th><th class="col-num">Placar</th><th>Time 2</th><th>Data</th>
-          ${isAdmin() ? '<th></th>' : ''}
+          <th>Time 1</th>
+          <th class="col-num">Placar</th>
+          <th>Time 2</th>
+          <th>Data</th>
+          ${isAdmin() ? '<th style="width:56px"></th>' : ''}
         </tr></thead>
-        <tbody>${d.partidas.map(p => `
-          <tr>
-            <td><div class="time-nome">
-              <img class="escudo" src="${p.escudoTime1 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
-              <a href="/time.html?id=${p.time1Id}">${p.nomeTime1}</a>
-            </div></td>
-            <td class="col-num">
-              <strong style="color:var(--verde-claro)">${p.golsTime1} × ${p.golsTime2}</strong>
+        <tbody>${d.partidas.map(p => {
+          const v1 = p.vencedorId === p.time1Id;
+          const v2 = p.vencedorId === p.time2Id;
+          return `<tr>
+            <td>
+              <div class="time-nome">
+                <img class="escudo" src="${p.escudoTime1 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+                <a href="/time.html?id=${p.time1Id}" style="${v1 ? 'color:var(--accent);font-weight:600' : ''}">${p.nomeTime1}</a>
+              </div>
             </td>
-            <td><div class="time-nome">
-              <img class="escudo" src="${p.escudoTime2 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
-              <a href="/time.html?id=${p.time2Id}">${p.nomeTime2}</a>
-            </div></td>
-            <td class="texto-muted">${new Date(p.data).toLocaleDateString('pt-BR')}</td>
+            <td class="col-num"><span class="score-pill">${p.golsTime1} × ${p.golsTime2}</span></td>
+            <td>
+              <div class="time-nome">
+                <img class="escudo" src="${p.escudoTime2 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+                <a href="/time.html?id=${p.time2Id}" style="${v2 ? 'color:var(--accent);font-weight:600' : ''}">${p.nomeTime2}</a>
+              </div>
+            </td>
+            <td class="texto-muted-2">${new Date(p.data).toLocaleDateString('pt-BR')}</td>
             ${isAdmin() ? `<td><button onclick="removerPartida(${p.id})" class="btn btn-perigo btn-sm">🗑️</button></td>` : ''}
-          </tr>`).join('')}
-        </tbody>
+          </tr>`;
+        }).join('')}</tbody>
       </table>
     </div>`;
 }
@@ -120,7 +140,7 @@ async function abrirModal() {
   const resp = await apiFetch('/api/times');
   if (!resp?.ok) return;
   const times = await resp.json();
-  const opts  = times.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+  const opts = times.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
   document.getElementById('selTime1').innerHTML = opts;
   document.getElementById('selTime2').innerHTML = opts;
   document.getElementById('golsTime1').value = 0;
@@ -135,7 +155,7 @@ function fecharModal() { document.getElementById('modalPartida').classList.add('
 async function registrarPartida() {
   const t1 = parseInt(document.getElementById('selTime1').value);
   const t2 = parseInt(document.getElementById('selTime2').value);
-  if (t1 === t2) { mostrarErrModal('Os times devem ser diferentes.'); return; }
+  if (t1 === t2) { mostrarErro('Os times devem ser diferentes.'); return; }
   const dataVal = document.getElementById('dataPartida').value;
   const resp = await apiFetch('/api/partidas', {
     method: 'POST',
@@ -147,19 +167,19 @@ async function registrarPartida() {
     }),
   });
   if (resp?.ok) { fecharModal(); carregarPartidas(); }
-  else { const d = await resp?.json(); mostrarErrModal(d?.erro || 'Erro ao registrar.'); }
+  else { const d = await resp?.json(); mostrarErro(d?.erro || 'Erro ao registrar.'); }
 }
 
 async function removerPartida(id) {
   if (!confirm('Remover esta partida? As estatísticas serão revertidas.')) return;
-  const resp = await apiFetch(`/api/partidas/${id}`, { method: 'DELETE' });
+  const resp = await apiFetch(`/api/partidas/${id}`, { method:'DELETE' });
   if (resp?.ok) carregarPartidas();
-  else { const d = await resp?.json(); alert(d?.erro || 'Erro ao remover.'); }
 }
 
-function mostrarErrModal(msg) {
+function mostrarErro(msg) {
   const el = document.getElementById('erroPartida');
-  el.textContent = msg; el.classList.remove('oculto');
+  el.textContent = msg;
+  el.classList.remove('oculto');
 }
 
 carregarPartidas();
