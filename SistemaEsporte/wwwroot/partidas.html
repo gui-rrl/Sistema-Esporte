@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Partidas — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container pagina">
+  <div class="flex justify-between items-center mb-2">
+    <h1 class="pagina-titulo" style="margin-bottom:0">📋 Partidas</h1>
+    <button id="btnRegistrar" class="btn btn-primario oculto">+ Registrar partida</button>
+  </div>
+
+  <div id="alertaPartida" class="alerta oculto"></div>
+
+  <div class="card">
+    <div id="listaPartidas"><p class="texto-muted centralizado">Carregando...</p></div>
+    <div class="flex justify-between items-center mt-2">
+      <button id="btnAnterior" class="btn btn-secundario btn-sm" onclick="mudarPagina(-1)">← Anterior</button>
+      <span id="infoPagina" class="texto-muted"></span>
+      <button id="btnProxima" class="btn btn-secundario btn-sm" onclick="mudarPagina(1)">Próxima →</button>
+    </div>
+  </div>
+</main>
+
+<!-- Modal registrar partida -->
+<div class="modal-overlay oculto" id="modalPartida">
+  <div class="modal">
+    <div class="modal-titulo">Registrar Partida</div>
+    <div id="erroPartida" class="alerta alerta-erro oculto"></div>
+    <div class="form-group">
+      <label class="form-label">Time 1</label>
+      <select id="selTime1" class="select"></select>
+    </div>
+    <div class="flex gap-1 items-center mb-2">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label class="form-label">Gols Time 1</label>
+        <input type="number" id="golsTime1" class="input" value="0" min="0">
+      </div>
+      <span style="align-self:flex-end;padding-bottom:.55rem;color:var(--texto-sec);font-size:1.2rem">×</span>
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label class="form-label">Gols Time 2</label>
+        <input type="number" id="golsTime2" class="input" value="0" min="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Time 2</label>
+      <select id="selTime2" class="select"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data (opcional)</label>
+      <input type="datetime-local" id="dataPartida" class="input">
+    </div>
+    <div class="modal-acoes">
+      <button onclick="fecharModal()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="registrarPartida()" class="btn btn-primario">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+
+let pagina = 1;
+const POR_PAGINA = 20;
+
+if (isAdmin()) document.getElementById('btnRegistrar').classList.remove('oculto');
+document.getElementById('btnRegistrar').onclick = abrirModal;
+
+async function carregarPartidas() {
+  const resp = await apiFetch(`/api/partidas?pagina=${pagina}&por=${POR_PAGINA}`);
+  if (!resp?.ok) return;
+  const d = await resp.json();
+  const total = d.total;
+  document.getElementById('infoPagina').textContent = `Página ${pagina} · ${total} partidas`;
+  document.getElementById('btnAnterior').disabled = pagina <= 1;
+  document.getElementById('btnProxima').disabled  = pagina * POR_PAGINA >= total;
+
+  if (d.partidas.length === 0) {
+    document.getElementById('listaPartidas').innerHTML = '<p class="texto-muted centralizado">Nenhuma partida registrada.</p>';
+    return;
+  }
+
+  document.getElementById('listaPartidas').innerHTML = `
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr>
+          <th>Time 1</th><th class="col-num">Placar</th><th>Time 2</th><th>Data</th>
+          ${isAdmin() ? '<th></th>' : ''}
+        </tr></thead>
+        <tbody>${d.partidas.map(p => `
+          <tr>
+            <td><div class="time-nome">
+              <img class="escudo" src="${p.escudoTime1 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+              <a href="/time.html?id=${p.time1Id}">${p.nomeTime1}</a>
+            </div></td>
+            <td class="col-num">
+              <strong style="color:var(--verde-claro)">${p.golsTime1} × ${p.golsTime2}</strong>
+            </td>
+            <td><div class="time-nome">
+              <img class="escudo" src="${p.escudoTime2 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+              <a href="/time.html?id=${p.time2Id}">${p.nomeTime2}</a>
+            </div></td>
+            <td class="texto-muted">${new Date(p.data).toLocaleDateString('pt-BR')}</td>
+            ${isAdmin() ? `<td><button onclick="removerPartida(${p.id})" class="btn btn-perigo btn-sm">🗑️</button></td>` : ''}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function mudarPagina(dir) { pagina = Math.max(1, pagina + dir); carregarPartidas(); }
+
+async function abrirModal() {
+  const resp = await apiFetch('/api/times');
+  if (!resp?.ok) return;
+  const times = await resp.json();
+  const opts  = times.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+  document.getElementById('selTime1').innerHTML = opts;
+  document.getElementById('selTime2').innerHTML = opts;
+  document.getElementById('golsTime1').value = 0;
+  document.getElementById('golsTime2').value = 0;
+  document.getElementById('dataPartida').value = '';
+  document.getElementById('erroPartida').classList.add('oculto');
+  document.getElementById('modalPartida').classList.remove('oculto');
+}
+
+function fecharModal() { document.getElementById('modalPartida').classList.add('oculto'); }
+
+async function registrarPartida() {
+  const t1 = parseInt(document.getElementById('selTime1').value);
+  const t2 = parseInt(document.getElementById('selTime2').value);
+  if (t1 === t2) { mostrarErrModal('Os times devem ser diferentes.'); return; }
+  const dataVal = document.getElementById('dataPartida').value;
+  const resp = await apiFetch('/api/partidas', {
+    method: 'POST',
+    body: JSON.stringify({
+      time1Id: t1, time2Id: t2,
+      golsTime1: parseInt(document.getElementById('golsTime1').value),
+      golsTime2: parseInt(document.getElementById('golsTime2').value),
+      data: dataVal ? new Date(dataVal).toISOString() : null,
+    }),
+  });
+  if (resp?.ok) { fecharModal(); carregarPartidas(); }
+  else { const d = await resp?.json(); mostrarErrModal(d?.erro || 'Erro ao registrar.'); }
+}
+
+async function removerPartida(id) {
+  if (!confirm('Remover esta partida? As estatísticas serão revertidas.')) return;
+  const resp = await apiFetch(`/api/partidas/${id}`, { method: 'DELETE' });
+  if (resp?.ok) carregarPartidas();
+  else { const d = await resp?.json(); alert(d?.erro || 'Erro ao remover.'); }
+}
+
+function mostrarErrModal(msg) {
+  const el = document.getElementById('erroPartida');
+  el.textContent = msg; el.classList.remove('oculto');
+}
+
+carregarPartidas();
+</script>
+</body>
+</html>

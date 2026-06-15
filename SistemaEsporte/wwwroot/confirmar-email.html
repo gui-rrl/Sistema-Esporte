@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirmar E-mail — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="icon">✅</div>
+      <h1>Sistema Esporte</h1>
+    </div>
+    <div id="alerta" class="alerta oculto"></div>
+    <p class="centralizado texto-muted mt-2"><a href="/login.html">Ir para o login</a></p>
+  </div>
+</div>
+<script src="/auth.js"></script>
+<script>
+(async () => {
+  const token = new URLSearchParams(location.search).get('token');
+  const el = document.getElementById('alerta');
+  if (!token) {
+    el.className = 'alerta alerta-erro'; el.textContent = 'Token inválido.'; el.classList.remove('oculto'); return;
+  }
+  const resp = await fetch(`/api/autenticacao/confirmar-email?token=${encodeURIComponent(token)}`);
+  const data = await resp.json();
+  el.className = resp.ok ? 'alerta alerta-ok' : 'alerta alerta-erro';
+  el.textContent = resp.ok ? data.mensagem : data.erro;
+  el.classList.remove('oculto');
+})();
+</script>
+</body>
+</html>

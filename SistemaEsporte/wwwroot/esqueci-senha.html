@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Esqueci a Senha — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="icon">🔑</div>
+      <h1>Sistema Esporte</h1>
+      <p class="texto-muted" style="margin-top:.3rem">Recuperar senha</p>
+    </div>
+    <div id="alerta" class="alerta oculto"></div>
+    <form id="form" onsubmit="enviar(event)">
+      <div class="form-group">
+        <label class="form-label">E-mail cadastrado</label>
+        <input type="email" id="email" class="input" placeholder="seu@email.com" required>
+      </div>
+      <button type="submit" class="btn btn-primario w-100">Enviar link de recuperação</button>
+    </form>
+    <p class="centralizado texto-muted mt-2"><a href="/login.html">Voltar ao login</a></p>
+  </div>
+</div>
+<script src="/auth.js"></script>
+<script>
+async function enviar(e) {
+  e.preventDefault();
+  const btn = e.submitter; btn.disabled = true; btn.textContent = 'Enviando…';
+  const resp = await fetch('/api/autenticacao/esqueci-senha', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: document.getElementById('email').value }),
+  });
+  const data = await resp.json();
+  const el = document.getElementById('alerta');
+  el.className = 'alerta alerta-ok';
+  el.textContent = data.mensagem;
+  el.classList.remove('oculto');
+  document.getElementById('form').style.display = 'none';
+}
+</script>
+</body>
+</html>

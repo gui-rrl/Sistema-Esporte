@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Torneios — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container pagina">
+  <div class="flex justify-between items-center mb-2">
+    <h1 class="pagina-titulo" style="margin-bottom:0">🏆 Torneios</h1>
+    <button id="btnNovo" class="btn btn-primario oculto">+ Novo torneio</button>
+  </div>
+
+  <div id="listaTorneios"><p class="texto-muted centralizado">Carregando...</p></div>
+</main>
+
+<!-- Modal novo torneio -->
+<div class="modal-overlay oculto" id="modalTorneio">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-titulo">Novo Torneio</div>
+    <div id="erroTorneio" class="alerta alerta-erro oculto"></div>
+    <div class="form-group">
+      <label class="form-label">Nome</label>
+      <input type="text" id="tnNome" class="input" placeholder="Ex: Copa Verão 2025">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Formato</label>
+      <select id="tnFormato" class="select" onchange="atualizarCampos()">
+        <option value="0">Pontos Corridos (Liga)</option>
+        <option value="1">Copa (Grupos + Mata-Mata)</option>
+        <option value="2">Mata-Mata Simples</option>
+        <option value="3">Mata-Mata Ida e Volta</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Máx. times <span class="texto-muted">(0 = ilimitado)</span></label>
+      <input type="number" id="tnMaxTimes" class="input" value="16" min="0">
+    </div>
+    <div id="campoCopa" class="oculto">
+      <div class="flex gap-1">
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Nº de grupos</label>
+          <input type="number" id="tnGrupos" class="input" value="4" min="2" max="8">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label class="form-label">Classificados/grupo</label>
+          <input type="number" id="tnClassif" class="input" value="2" min="1">
+        </div>
+      </div>
+    </div>
+    <div class="flex gap-1">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Início</label>
+        <input type="date" id="tnInicio" class="input">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Fim (opcional)</label>
+        <input type="date" id="tnFim" class="input">
+      </div>
+    </div>
+    <div class="modal-acoes">
+      <button onclick="fecharModal()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="criarTorneio()" class="btn btn-primario">Criar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+if (isAdmin()) document.getElementById('btnNovo').classList.remove('oculto');
+document.getElementById('btnNovo').onclick = () => document.getElementById('modalTorneio').classList.remove('oculto');
+
+const FORMATOS = ['Pontos Corridos', 'Copa', 'Mata-Mata Simples', 'Mata-Mata Ida e Volta'];
+const STATUS   = { 0: ['Preparação','badge-amarelo'], 1: ['Em Andamento','badge-verde'], 2: ['Finalizado','badge-cinza'] };
+
+function atualizarCampos() {
+  const f = parseInt(document.getElementById('tnFormato').value);
+  document.getElementById('campoCopa').classList.toggle('oculto', f !== 1);
+}
+
+async function carregarTorneios() {
+  const resp = await apiFetch('/api/torneios');
+  if (!resp?.ok) return;
+  const lista = await resp.json();
+  if (lista.length === 0) {
+    document.getElementById('listaTorneios').innerHTML = '<p class="texto-muted centralizado">Nenhum torneio criado.</p>';
+    return;
+  }
+  document.getElementById('listaTorneios').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem">
+      ${lista.map(t => {
+        const [statusLabel, statusClass] = STATUS[t.status] ?? ['?','badge-cinza'];
+        return `<div class="card">
+          <div class="flex justify-between items-center mb-1">
+            <span class="badge ${statusClass}">${statusLabel}</span>
+            <span class="texto-muted" style="font-size:.8rem">${FORMATOS[t.formato]}</span>
+          </div>
+          <div style="font-size:1.1rem;font-weight:700;color:var(--verde-claro);margin:.4rem 0">${t.nome}</div>
+          <div class="texto-muted" style="font-size:.85rem">${t.qtdTimes} times inscritos</div>
+          <div class="flex gap-1 mt-2">
+            <a href="/torneio.html?id=${t.id}" class="btn btn-primario btn-sm">Ver torneio</a>
+            ${isAdmin() ? `<button onclick="removerTorneio(${t.id})" class="btn btn-perigo btn-sm">🗑️</button>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function fecharModal() { document.getElementById('modalTorneio').classList.add('oculto'); }
+
+async function criarTorneio() {
+  const nome = document.getElementById('tnNome').value.trim();
+  if (!nome) { mostrarErro('Nome obrigatório.'); return; }
+  const inicio = document.getElementById('tnInicio').value;
+  const fim    = document.getElementById('tnFim').value;
+  const fmt    = parseInt(document.getElementById('tnFormato').value);
+  const resp = await apiFetch('/api/torneios', {
+    method: 'POST',
+    body: JSON.stringify({
+      nome, formato: fmt,
+      maxTimes: parseInt(document.getElementById('tnMaxTimes').value) || 0,
+      dataInicio: inicio ? new Date(inicio).toISOString() : null,
+      dataFim:    fim    ? new Date(fim).toISOString()    : null,
+      numeroGrupos:          fmt === 1 ? parseInt(document.getElementById('tnGrupos').value)  : null,
+      classificadosPorGrupo: fmt === 1 ? parseInt(document.getElementById('tnClassif').value) : null,
+    }),
+  });
+  if (resp?.ok) {
+    const d = await resp.json();
+    fecharModal();
+    location.href = `/torneio.html?id=${d.id}`;
+  } else {
+    const d = await resp?.json();
+    mostrarErro(d?.erro || 'Erro ao criar torneio.');
+  }
+}
+
+async function removerTorneio(id) {
+  if (!confirm('Remover este torneio permanentemente?')) return;
+  const resp = await apiFetch(`/api/torneios/${id}`, { method: 'DELETE' });
+  if (resp?.ok) carregarTorneios();
+}
+
+function mostrarErro(msg) {
+  const el = document.getElementById('erroTorneio');
+  el.textContent = msg; el.classList.remove('oculto');
+}
+
+carregarTorneios();
+</script>
+</body>
+</html>

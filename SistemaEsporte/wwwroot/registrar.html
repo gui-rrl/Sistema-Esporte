@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Criar Conta — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="icon">⚽</div>
+      <h1>Sistema Esporte</h1>
+      <p class="texto-muted" style="margin-top:.3rem">Criar nova conta</p>
+    </div>
+
+    <div id="alerta" class="alerta oculto"></div>
+
+    <form id="formRegistrar" onsubmit="registrar(event)">
+      <div class="form-group">
+        <label class="form-label">Usuário</label>
+        <input type="text" id="usuario" class="input" placeholder="Nome de usuário" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">E-mail</label>
+        <input type="email" id="email" class="input" placeholder="seu@email.com" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Senha</label>
+        <input type="password" id="senha" class="input" placeholder="Mínimo 4 caracteres" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirmar senha</label>
+        <input type="password" id="confirmarSenha" class="input" placeholder="Repita a senha" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nome do seu time <span class="texto-muted">(opcional)</span></label>
+        <input type="text" id="nomeTime" class="input" placeholder="Ex: Meu Time FC">
+      </div>
+      <button type="submit" class="btn btn-primario w-100" style="margin-top:.5rem">Criar conta</button>
+    </form>
+
+    <p class="centralizado texto-muted mt-2">
+      Já tem conta? <a href="/login.html">Entrar</a>
+    </p>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+async function registrar(e) {
+  e.preventDefault();
+  const btn = e.submitter;
+  btn.disabled = true;
+  btn.textContent = 'Criando…';
+
+  const resp = await fetch('/api/autenticacao/registrar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nomeUsuario:    document.getElementById('usuario').value,
+      email:          document.getElementById('email').value,
+      senha:          document.getElementById('senha').value,
+      confirmarSenha: document.getElementById('confirmarSenha').value,
+      nomeTime:       document.getElementById('nomeTime').value || null,
+    }),
+  });
+
+  const data = await resp.json();
+  const el = document.getElementById('alerta');
+  if (resp.ok) {
+    el.className = 'alerta alerta-ok';
+    el.textContent = data.mensagem || 'Conta criada! Verifique seu e-mail.';
+    el.classList.remove('oculto');
+    document.getElementById('formRegistrar').style.display = 'none';
+  } else {
+    el.className = 'alerta alerta-erro';
+    el.textContent = data.erro || 'Erro ao criar conta.';
+    el.classList.remove('oculto');
+    btn.disabled = false;
+    btn.textContent = 'Criar conta';
+  }
+}
+</script>
+</body>
+</html>

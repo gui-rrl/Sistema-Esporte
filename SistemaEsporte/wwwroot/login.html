@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrar — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="icon">⚽</div>
+      <h1>Sistema Esporte</h1>
+      <p class="texto-muted" style="margin-top:.3rem">Acesse sua conta</p>
+    </div>
+
+    <div id="alerta" class="alerta alerta-erro oculto"></div>
+
+    <form id="formLogin" onsubmit="login(event)">
+      <div class="form-group">
+        <label class="form-label">Usuário</label>
+        <input type="text" id="usuario" class="input" placeholder="Nome de usuário" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;justify-content:space-between">
+          Senha
+          <a href="/esqueci-senha.html" style="font-size:.82rem">Esqueceu a senha?</a>
+        </label>
+        <input type="password" id="senha" class="input" placeholder="••••••••" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primario w-100" style="margin-top:.5rem">Entrar</button>
+    </form>
+
+    <p class="centralizado texto-muted mt-2">
+      Não tem conta? <a href="/registrar.html">Criar conta</a>
+    </p>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+if (isLogado()) window.location.href = '/index.html';
+
+async function login(e) {
+  e.preventDefault();
+  const btn = e.submitter;
+  btn.disabled = true;
+  btn.textContent = 'Entrando…';
+
+  const resp = await fetch('/api/autenticacao/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nomeUsuario: document.getElementById('usuario').value, senha: document.getElementById('senha').value }),
+  });
+
+  const data = await resp.json();
+  if (resp.ok) {
+    salvarSessao(data);
+    window.location.href = '/index.html';
+  } else {
+    const el = document.getElementById('alerta');
+    el.textContent = data.erro || 'Erro ao fazer login.';
+    el.classList.remove('oculto');
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+}
+</script>
+</body>
+</html>

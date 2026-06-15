@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Esporte — Ranking</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<main class="container pagina">
+  <!-- Stats gerais -->
+  <div class="stats-grid" id="statsGerais"></div>
+
+  <!-- Ranking -->
+  <div class="flex justify-between items-center mb-2">
+    <h1 class="pagina-titulo" style="margin-bottom:0">⚽ Ranking Geral</h1>
+    <div class="flex gap-1 items-center">
+      <input type="search" id="busca" class="input" style="width:260px" placeholder="Buscar time...">
+      <button id="btnNovoTime" class="btn btn-primario oculto">+ Time</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabela-wrap">
+      <table id="tabelaRanking">
+        <thead>
+          <tr>
+            <th class="col-num">#</th>
+            <th>Time</th>
+            <th class="col-num">Pts</th>
+            <th class="col-num">P</th>
+            <th class="col-num">V</th>
+            <th class="col-num">E</th>
+            <th class="col-num">D</th>
+            <th class="col-num">GM</th>
+            <th class="col-num">GS</th>
+            <th class="col-num">SG</th>
+            <th class="col-num">%</th>
+          </tr>
+        </thead>
+        <tbody id="corpoRanking"></tbody>
+      </table>
+    </div>
+    <p id="semTimes" class="centralizado texto-muted mt-2 oculto">Nenhum time cadastrado ainda.</p>
+  </div>
+</main>
+
+<!-- Modal novo time -->
+<div class="modal-overlay oculto" id="modalNovoTime">
+  <div class="modal">
+    <div class="modal-titulo">Novo Time</div>
+    <div id="erroNovoTime" class="alerta alerta-erro oculto"></div>
+    <div class="form-group">
+      <label class="form-label">Nome do time</label>
+      <input type="text" id="inputNomeTime" class="input" placeholder="Ex: Flamengo">
+    </div>
+    <div class="modal-acoes">
+      <button onclick="fecharModal()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="criarTime()" class="btn btn-primario">Criar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+
+async function carregarDados() {
+  const [rPainel, rTimes] = await Promise.all([
+    apiFetch('/api/painel'),
+    apiFetch('/api/times'),
+  ]);
+
+  if (rPainel?.ok) {
+    const d = await rPainel.json();
+    document.getElementById('statsGerais').innerHTML = `
+      <div class="stat-card"><div class="stat-valor">${d.totalTimes}</div><div class="stat-label">Times</div></div>
+      <div class="stat-card"><div class="stat-valor">${d.totalPartidas}</div><div class="stat-label">Partidas</div></div>
+      <div class="stat-card"><div class="stat-valor">${d.totalTorneios}</div><div class="stat-label">Torneios</div></div>
+      <div class="stat-card"><div class="stat-valor">${d.torneiosAtivos}</div><div class="stat-label">Em andamento</div></div>`;
+  }
+
+  if (rTimes?.ok) {
+    window._times = await rTimes.json();
+    renderizarRanking(window._times);
+  }
+
+  if (isAdmin()) document.getElementById('btnNovoTime').classList.remove('oculto');
+}
+
+function renderizarRanking(times) {
+  const corpo = document.getElementById('corpoRanking');
+  document.getElementById('semTimes').classList.toggle('oculto', times.length > 0);
+  corpo.innerHTML = times.map(t => `
+    <tr>
+      <td class="col-num">${t.posicao}</td>
+      <td>
+        <div class="time-nome">
+          <img class="escudo" src="${t.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+          <a href="/time.html?id=${t.id}">${t.nome}</a>
+        </div>
+      </td>
+      <td class="col-num"><strong style="color:var(--verde-claro)">${t.pontuacao}</strong></td>
+      <td class="col-num">${t.partidas}</td>
+      <td class="col-num">${t.totalVitorias}</td>
+      <td class="col-num">${t.totalEmpates}</td>
+      <td class="col-num">${t.totalDerrotas}</td>
+      <td class="col-num">${t.totalGolsMarcados}</td>
+      <td class="col-num">${t.totalGolsSofridos}</td>
+      <td class="col-num">${t.saldoGols >= 0 ? '+' + t.saldoGols : t.saldoGols}</td>
+      <td class="col-num">${t.aproveitamento}%</td>
+    </tr>`).join('');
+}
+
+document.getElementById('busca').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase();
+  renderizarRanking((window._times || []).filter(t => t.nome.toLowerCase().includes(q)));
+});
+
+document.getElementById('btnNovoTime').addEventListener('click', () => {
+  document.getElementById('modalNovoTime').classList.remove('oculto');
+  document.getElementById('inputNomeTime').value = '';
+  document.getElementById('erroNovoTime').classList.add('oculto');
+});
+
+function fecharModal() { document.getElementById('modalNovoTime').classList.add('oculto'); }
+
+async function criarTime() {
+  const nome = document.getElementById('inputNomeTime').value.trim();
+  if (!nome) return;
+  const resp = await apiFetch('/api/times', { method: 'POST', body: JSON.stringify({ nome }) });
+  if (resp?.ok) { fecharModal(); carregarDados(); }
+  else {
+    const d = await resp?.json();
+    const el = document.getElementById('erroNovoTime');
+    el.textContent = d?.erro || 'Erro ao criar time.';
+    el.classList.remove('oculto');
+  }
+}
+
+carregarDados();
+</script>
+</body>
+</html>
