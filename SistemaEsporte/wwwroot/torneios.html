@@ -126,7 +126,7 @@ async function carregarTorneios() {
             ${t.dataInicio ? ' · ' + new Date(t.dataInicio).toLocaleDateString('pt-BR') : ''}
           </div>
           <div class="flex gap-1" style="flex-wrap:wrap">
-            <a href="/torneio.html?id=${t.id}" class="btn btn-primario btn-sm">Ver torneio</a>
+            <a href="/torneio.html?id=${t.id}" class="btn btn-link btn-sm">Ver torneio</a>
             ${isAdmin() ? `<button onclick="removerTorneio(${t.id})" class="btn btn-perigo btn-sm">🗑️</button>` : ''}
           </div>
         </div>`).join('')}
@@ -165,7 +165,7 @@ async function criarTorneio() {
 }
 
 async function removerTorneio(id) {
-  if (!confirm('Remover este torneio permanentemente?')) return;
+  if (!await sConfirm('Esta ação não pode ser desfeita. Todos os dados do torneio serão perdidos.', 'Remover torneio?', 'warning')) return;
   const resp = await apiFetch(`/api/torneios/${id}`, { method:'DELETE' });
   if (resp?.ok) carregarTorneios();
 }

@@ -171,7 +171,7 @@ async function registrarPartida() {
 }
 
 async function removerPartida(id) {
-  if (!confirm('Remover esta partida? As estatísticas serão revertidas.')) return;
+  if (!await sConfirm('As estatísticas dos times serão revertidas.', 'Remover partida?', 'warning')) return;
   const resp = await apiFetch(`/api/partidas/${id}`, { method:'DELETE' });
   if (resp?.ok) carregarPartidas();
 }

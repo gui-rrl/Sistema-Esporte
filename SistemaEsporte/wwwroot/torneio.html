@@ -144,7 +144,7 @@ function renderizar() {
       if (temMataMata) {
         html += `<div class="card-app mb-2">
           <div class="card-body" style="text-align:center;padding:1.25rem">
-            <a href="/chaveamento.html?id=${id}" class="btn btn-primario" style="font-size:1rem;padding:.65rem 2rem">
+            <a href="/chaveamento.html?id=${id}" class="btn btn-link" style="font-size:1rem;padding:.65rem 2rem">
               🥊 Ver Chaveamento
             </a>
           </div>
@@ -417,17 +417,17 @@ function renderPartidaChave(p, t) {
 
 // ===== Ações =====
 async function gerarTorneio() {
-  if (!confirm('Gerar o torneio? Os confrontos serão sorteados.')) return;
+  if (!await sConfirm('Os confrontos serão sorteados e o torneio iniciará.', 'Gerar torneio?')) return;
   const resp = await apiFetch(`/api/torneios/${id}/gerar`, { method:'POST' });
   if (resp?.ok) carregar();
-  else { const d = await resp?.json(); alert(d?.erro || 'Erro ao gerar.'); }
+  else { const d = await resp?.json(); sAlert(d?.erro || 'Erro ao gerar.', 'Erro', 'error'); }
 }
 
 async function gerarMataMata() {
-  if (!confirm('Gerar a fase mata-mata com os classificados?')) return;
+  if (!await sConfirm('Os classificados de cada grupo serão chaveados no mata-mata.', 'Gerar mata-mata?')) return;
   const resp = await apiFetch(`/api/torneios/${id}/gerar-mata-mata`, { method:'POST' });
   if (resp?.ok) carregar();
-  else { const d = await resp?.json(); alert(d?.erro || 'Erro.'); }
+  else { const d = await resp?.json(); sAlert(d?.erro || 'Erro ao gerar mata-mata.', 'Erro', 'error'); }
 }
 
 // Modal resultado
@@ -472,7 +472,7 @@ async function abrirAddTime() {
   const todos = await resp.json();
   const inscritos = new Set(torneioAtual.times.map(tt => tt.timeId));
   const disponiveis = todos.filter(t => !inscritos.has(t.id));
-  if (!disponiveis.length) { alert('Todos os times já estão inscritos.'); return; }
+  if (!disponiveis.length) { sAlert('Todos os times já estão inscritos.', 'Aviso', 'info'); return; }
 
   document.getElementById('listaCheckTimes').innerHTML = disponiveis.map(t => `
     <label style="display:flex;align-items:center;gap:.65rem;padding:.45rem .6rem;border-radius:8px;cursor:pointer;transition:background .12s"
@@ -525,7 +525,7 @@ async function addTimes() {
 }
 
 async function removerTimeInscrito(ttId) {
-  if (!confirm('Remover este time do torneio?')) return;
+  if (!await sConfirm('O time será removido do torneio.', 'Remover time?', 'warning')) return;
   const resp = await apiFetch(`/api/torneios/${id}/times/${ttId}`, { method:'DELETE' });
   if (resp?.ok) carregar();
 }

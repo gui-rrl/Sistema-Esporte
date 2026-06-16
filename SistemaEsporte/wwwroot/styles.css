@@ -289,6 +289,9 @@ h1,h2,h3,h4,h5,h6 {
 .btn-perigo { background: linear-gradient(135deg,#ef4444,#f87171); color:#fff; border:none; }
 .btn-perigo:hover { filter:brightness(1.08); color:#fff; }
 
+.btn-link { background: linear-gradient(135deg,#15803d 0%,#16a34a 50%,#22c55e 100%); color:#fff; border:none; box-shadow: 0 2px 8px rgba(21,128,61,.35); }
+.btn-link:hover { filter:brightness(1.1); color:#fff; }
+
 .btn-sm { padding:.3rem .7rem; font-size:.78rem; border-radius:8px; }
 .w-100  { width:100%; }
 
