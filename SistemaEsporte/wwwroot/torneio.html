@@ -149,8 +149,8 @@ function renderizar() {
   } else if (t.formato === 1) {
     // Copa: partidas dos grupos primeiro, tabelas por grupo abaixo
     if (t.partidas.length > 0) {
-      html += renderGrupos(t);
       html += renderTabelasPorGrupo(t);
+      html += renderGrupos(t);
       const temMataMata = t.partidas.some(p =>
         ['OitavasDeFinall','QuartasDeFinall','Semifinal','Terceiro','Final'].includes(p.fase));
       if (temMataMata) {

@@ -62,21 +62,18 @@ namespace SistemaEsporte.Controladores
         [HttpGet("api/jogadores-pelada")]
         public async Task<IActionResult> ListarJogadoresPelada()
         {
-            var hoje = DateTime.UtcNow;
             var lista = await _db.JogadoresPelada
                 .Include(jp => jp.Inscricoes).ThenInclude(i => i.Pelada)
                 .OrderBy(jp => jp.Nome)
                 .Select(jp => new {
                     jp.Id, jp.Nome, jp.Telefone,
-                    Nivel            = (int)jp.Nivel,
-                    TotalPeladas     = jp.Inscricoes.Count(i => !i.EmEspera),
-                    UltimaPelada     = jp.Inscricoes
+                    Nivel        = (int)jp.Nivel,
+                    TotalPeladas = jp.Inscricoes.Count(i => !i.EmEspera),
+                    UltimaPelada = jp.Inscricoes
                         .Where(i => !i.EmEspera && i.Pelada != null)
                         .OrderByDescending(i => i.Pelada!.Data)
                         .Select(i => (DateTime?)i.Pelada!.Data)
                         .FirstOrDefault(),
-                    PunidoAtivo      = _db.PunicoesJogador
-                        .Any(pu => pu.JogadorId == 0 && pu.DataFim >= hoje), // placeholder — pelada players não têm punições ainda
                 })
                 .ToListAsync();
             return Ok(lista);
@@ -241,7 +238,7 @@ namespace SistemaEsporte.Controladores
 
             if (!dto.EhGoleiro && !emEspera)
             {
-                var totalApos = pelada.Inscricoes.Count(i => !i.EhGoleiro && !i.EmEspera) + 1;
+                var totalApos = pelada.Inscricoes.Count(i => !i.EhGoleiro && !i.EmEspera);
                 if (totalApos >= pelada.LimiteJogadores)
                     pelada.Status = StatusPelada.Fechada;
             }
