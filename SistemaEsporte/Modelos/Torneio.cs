@@ -32,6 +32,9 @@ namespace SistemaEsporte.Modelos
         public string? CodigoConvite { get; set; }
         public int MaxTimes { get; set; } = 0; // 0 = ilimitado
 
+        // Liga — ida e volta (true) ou somente ida (false)
+        public bool IdaVolta { get; set; } = true;
+
         // Liga / Copa — rodadas
         public int RodadaAtual { get; set; } = 0;
         public int TotalRodadas { get; set; } = 0;

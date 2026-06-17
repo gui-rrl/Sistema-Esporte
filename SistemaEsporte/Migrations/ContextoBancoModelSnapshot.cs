@@ -22,6 +22,82 @@ namespace SistemaEsporte.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("SistemaEsporte.Modelos.InscricaoPelada", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<bool>("Compareceu").HasColumnType("bit");
+                    b.Property<DateTime>("DataInscricao").HasColumnType("datetime2");
+                    b.Property<bool>("EhGoleiro").HasColumnType("bit");
+                    b.Property<bool>("EmEspera").HasColumnType("bit");
+                    b.Property<int?>("JogadorId").HasColumnType("int");
+                    b.Property<int?>("JogadorPeladaId").HasColumnType("int");
+                    b.Property<int>("NivelAvulso").HasColumnType("int");
+                    b.Property<int>("PeladaId").HasColumnType("int");
+                    b.Property<int?>("TimeDistribuido").HasColumnType("int");
+                    b.HasKey("Id");
+                    b.HasIndex("JogadorId");
+                    b.HasIndex("JogadorPeladaId");
+                    b.HasIndex("PeladaId");
+                    b.ToTable("InscricoesPelada");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.JogadorPelada", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<int>("Nivel").HasColumnType("int");
+                    b.Property<string>("Nome").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("Telefone").IsRequired().HasColumnType("nvarchar(max)");
+                    b.HasKey("Id");
+                    b.ToTable("JogadoresPelada");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.Jogador", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<int>("Derrotas").HasColumnType("int");
+                    b.Property<int>("Empates").HasColumnType("int");
+                    b.Property<int>("GolsMarcados").HasColumnType("int");
+                    b.Property<int>("GolsSofridos").HasColumnType("int");
+                    b.Property<int>("Nivel").HasColumnType("int");
+                    b.Property<string>("Nome").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<int>("Posicao").HasColumnType("int");
+                    b.Property<int>("TimeId").HasColumnType("int");
+                    b.Property<int>("Vitorias").HasColumnType("int");
+                    b.HasKey("Id");
+                    b.HasIndex("TimeId");
+                    b.ToTable("Jogadores");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.Pelada", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<DateTime>("Data").HasColumnType("datetime2");
+                    b.Property<string>("Descricao").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<int>("LimiteGoleiros").HasColumnType("int");
+                    b.Property<int>("LimiteJogadores").HasColumnType("int");
+                    b.Property<string>("Local").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<int>("Status").HasColumnType("int");
+                    b.HasKey("Id");
+                    b.ToTable("Peladas");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.PunicaoJogador", b =>
+                {
+                    b.Property<int>("Id").ValueGeneratedOnAdd().HasColumnType("int");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+                    b.Property<DateTime>("DataFim").HasColumnType("datetime2");
+                    b.Property<DateTime>("DataInicio").HasColumnType("datetime2");
+                    b.Property<int>("JogadorId").HasColumnType("int");
+                    b.Property<string>("Motivo").IsRequired().HasColumnType("nvarchar(max)");
+                    b.HasKey("Id");
+                    b.HasIndex("JogadorId");
+                    b.ToTable("PunicoesJogador");
+                });
+
             modelBuilder.Entity("SistemaEsporte.Modelos.Partida", b =>
                 {
                     b.Property<int>("Id")
@@ -185,6 +261,10 @@ namespace SistemaEsporte.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IdaVolta")
+                        .HasDefaultValue(true)
+                        .HasColumnType("bit");
+
                     b.Property<int>("NumeroGrupos")
                         .HasColumnType("int");
 
@@ -339,6 +419,47 @@ namespace SistemaEsporte.Migrations
                     b.Navigation("Time2");
                 });
 
+            modelBuilder.Entity("SistemaEsporte.Modelos.InscricaoPelada", b =>
+                {
+                    b.HasOne("SistemaEsporte.Modelos.Jogador", "Jogador")
+                        .WithMany("Inscricoes")
+                        .HasForeignKey("JogadorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("SistemaEsporte.Modelos.JogadorPelada", "JogadorPelada")
+                        .WithMany("Inscricoes")
+                        .HasForeignKey("JogadorPeladaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("SistemaEsporte.Modelos.Pelada", "Pelada")
+                        .WithMany("Inscricoes")
+                        .HasForeignKey("PeladaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.Navigation("Jogador");
+                    b.Navigation("JogadorPelada");
+                    b.Navigation("Pelada");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.Jogador", b =>
+                {
+                    b.HasOne("SistemaEsporte.Modelos.Time", "Time")
+                        .WithMany()
+                        .HasForeignKey("TimeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Time");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.PunicaoJogador", b =>
+                {
+                    b.HasOne("SistemaEsporte.Modelos.Jogador", "Jogador")
+                        .WithMany("Punicoes")
+                        .HasForeignKey("JogadorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.Navigation("Jogador");
+                });
+
             modelBuilder.Entity("SistemaEsporte.Modelos.PartidaTorneio", b =>
                 {
                     b.HasOne("SistemaEsporte.Modelos.Torneio", "Torneio")
@@ -374,6 +495,22 @@ namespace SistemaEsporte.Migrations
                         .HasForeignKey("TimeId");
 
                     b.Navigation("Time");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.Jogador", b =>
+                {
+                    b.Navigation("Inscricoes");
+                    b.Navigation("Punicoes");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.JogadorPelada", b =>
+                {
+                    b.Navigation("Inscricoes");
+                });
+
+            modelBuilder.Entity("SistemaEsporte.Modelos.Pelada", b =>
+                {
+                    b.Navigation("Inscricoes");
                 });
 
             modelBuilder.Entity("SistemaEsporte.Modelos.Torneio", b =>

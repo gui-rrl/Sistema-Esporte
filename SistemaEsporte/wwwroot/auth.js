@@ -100,9 +100,10 @@ function renderNavbar(container) {
       Sistema Esporte
     </a>
     <nav class="nav-pills">
-      ${navLink('/index.html',    'Ranking',  '🏅')}
+      ${navLink('/index.html',    'Times',    '👥')}
       ${navLink('/partidas.html', 'Partidas', '📋')}
       ${navLink('/torneios.html', 'Torneios', '🏆')}
+      ${navLink('/peladas.html',  'Peladas',  '⚽')}
     </nav>
     <div class="navbar-end">
       ${usuario

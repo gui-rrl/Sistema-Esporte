@@ -21,6 +21,91 @@ renderNavbar(document.getElementById('navbar'));
 const id = new URLSearchParams(location.search).get('id');
 if (!id) location.href = '/index.html';
 
+const POSICOES = ['Goleiro','Zagueiro','Lateral Direito','Lateral Esquerdo','Meio Campo','Atacante','Reserva','Técnico'];
+const POSICAO_ICON = ['🧤','🛡️','➡️','⬅️','⚙️','⚽','🔄','📋'];
+
+async function carregarJogadores() {
+  const resp = await apiFetch(`/api/times/${id}/jogadores`);
+  if (!resp?.ok) return;
+  let lista;
+  try { lista = await resp.json(); } catch { return; }
+  const el = document.getElementById('listaJogadores');
+  if (!lista.length) {
+    el.innerHTML = '<div class="texto-muted-2">Nenhum jogador cadastrado.</div>';
+    return;
+  }
+  // Agrupa por posição
+  const grupos = {};
+  lista.forEach(j => {
+    const k = j.posicaoId;
+    if (!grupos[k]) grupos[k] = [];
+    grupos[k].push(j);
+  });
+  el.innerHTML = Object.entries(grupos).map(([pid, jogadores]) => `
+    <div style="margin-bottom:1rem">
+      <div class="texto-muted-2" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.4rem">
+        ${POSICAO_ICON[pid]} ${POSICOES[pid]}
+      </div>
+      ${jogadores.map(j => {
+        const NIVEL_COR   = ['#3b82f6','#eab308','#22c55e'];
+        const NIVEL_LABEL = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
+        const nv = j.nivel ?? 1;
+        return `
+        <div class="flex items-center gap-1 partida-row hover-lift" style="cursor:pointer;margin-bottom:.35rem"
+             onclick="location.href='/jogador.html?id=${j.id}'">
+          <div style="flex:1;font-weight:600;font-size:.9rem">${j.nome}</div>
+          <span style="font-size:.7rem;padding:.1rem .4rem;border-radius:99px;font-weight:600;flex-shrink:0;
+            background:${NIVEL_COR[nv]}22;color:${NIVEL_COR[nv]}">${NIVEL_LABEL[nv]}</span>
+          <div class="texto-muted-2" style="font-size:.8rem">${j.vitorias}V ${j.empates}E ${j.derrotas}D</div>
+          ${isAdmin() ? `
+            <button onclick="event.stopPropagation();editarJogador(${j.id},'${j.nome.replace(/'/g,"\\'")}',${j.posicaoId},${nv})"
+              class="btn btn-secundario btn-sm" style="padding:.2rem .5rem">✏️</button>
+            <button onclick="event.stopPropagation();removerJogador(${j.id})"
+              class="btn btn-perigo btn-sm" style="padding:.2rem .5rem">🗑️</button>` : ''}
+        </div>`}).join('')}
+    </div>`).join('');
+}
+
+let editandoJogadorId = null;
+
+function abrirModalJogador(jogId, nome, posId, nivelId) {
+  editandoJogadorId = jogId ?? null;
+  document.getElementById('jogNome').value = nome ?? '';
+  document.getElementById('jogPosicao').value = posId ?? 0;
+  document.querySelectorAll('#toggleNivelJog .toggle-btn').forEach((b,i) => b.classList.toggle('active', i === (nivelId ?? 1)));
+  document.getElementById('tituloModalJogador').textContent = jogId ? 'Editar Jogador' : 'Novo Jogador';
+  document.getElementById('modalJogador').classList.remove('oculto');
+}
+
+function editarJogador(id, nome, posId, nivelId) { abrirModalJogador(id, nome, posId, nivelId); }
+function fecharModalJogador() { document.getElementById('modalJogador').classList.add('oculto'); }
+function setNivelJog(v) {
+  document.querySelectorAll('#toggleNivelJog .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+}
+
+async function salvarJogador() {
+  const nome = document.getElementById('jogNome').value.trim();
+  if (!nome) return;
+  const posicaoId = parseInt(document.getElementById('jogPosicao').value);
+  const nivelId   = [...document.querySelectorAll('#toggleNivelJog .toggle-btn')].findIndex(b => b.classList.contains('active'));
+  const body = JSON.stringify({ nome, posicaoId, nivelId: nivelId >= 0 ? nivelId : 1 });
+  let resp;
+  if (editandoJogadorId) {
+    resp = await apiFetch(`/api/jogadores/${editandoJogadorId}`, { method:'PUT', body });
+  } else {
+    resp = await apiFetch(`/api/times/${id}/jogadores`, { method:'POST', body });
+  }
+  if (resp?.ok) { fecharModalJogador(); carregarJogadores(); }
+  else mostrarAlerta('Erro ao salvar jogador.', 'erro');
+}
+
+async function removerJogador(jogId) {
+  if (!await sConfirm('O jogador será removido permanentemente.', 'Remover jogador?', 'warning')) return;
+  const resp = await apiFetch(`/api/jogadores/${jogId}`, { method:'DELETE' });
+  if (resp?.ok) carregarJogadores();
+  else mostrarAlerta('Erro ao remover jogador.', 'erro');
+}
+
 async function carregar() {
   const resp = await apiFetch(`/api/times/${id}`);
   if (!resp?.ok) {
@@ -28,11 +113,8 @@ async function carregar() {
     return;
   }
   const t = await resp.json();
-
   const inicialNome = t.nome.charAt(0).toUpperCase();
-
   document.getElementById('conteudo').innerHTML = `
-    <!-- Hero do perfil -->
     <div style="
       background: radial-gradient(800px 300px at 20% -10%, rgba(22,163,74,0.18), transparent 60%),
                   radial-gradient(600px 300px at 100% 100%, rgba(52,211,153,0.12), transparent 60%),
@@ -40,13 +122,11 @@ async function carregar() {
       border:1px solid var(--border);border-radius:var(--radius-lg);
       padding:2rem;margin-bottom:1.5rem;
       display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
-
       <div style="position:relative">
         <img id="escudoImg"
           src="${t.escudoUrl || ''}"
           onerror="this.style.display='none';document.getElementById('escudoLetra').style.display='inline-flex'"
-          ${t.escudoUrl ? '' : 'style="display:none"'}
-          style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:2px solid var(--border-strong);box-shadow:var(--shadow-glow)">
+          style="width:88px;height:88px;border-radius:50%;object-fit:cover;border:2px solid var(--border-strong);box-shadow:var(--shadow-glow);${t.escudoUrl ? '' : 'display:none'}">
         <div id="escudoLetra" style="
           width:88px;height:88px;border-radius:50%;
           background:var(--gradient-primary);color:#fff;
@@ -62,7 +142,6 @@ async function carregar() {
             title="Alterar escudo">✏️</button>
           <input type="file" id="inputEscudo" accept="image/*" style="display:none" onchange="uploadEscudo(this)">` : ''}
       </div>
-
       <div style="flex:1;min-width:200px">
         <h1 style="font-family:'Sora',sans-serif;font-size:2rem;margin:0 0 .4rem" id="nomeExibicao">${t.nome}</h1>
         <div class="flex gap-1" style="flex-wrap:wrap">
@@ -70,7 +149,6 @@ async function carregar() {
           <span style="color:var(--text-3);font-size:.85rem;align-self:center">${t.partidas} partidas disputadas</span>
         </div>
       </div>
-
       ${isAdmin() ? `
         <div class="flex gap-1" style="flex-wrap:wrap;align-self:flex-start">
           <button onclick="abrirEditarNome()" class="btn btn-secundario btn-sm">✏️ Editar nome</button>
@@ -80,7 +158,6 @@ async function carregar() {
 
     <div id="alertaTime" class="alerta oculto"></div>
 
-    <!-- Form editar nome (oculto) -->
     <div id="formEditarNome" class="card-app oculto mb-2" style="max-width:380px">
       <div class="card-body">
         <div class="modal-titulo" style="font-size:.95rem;margin-bottom:.75rem">Editar nome</div>
@@ -92,7 +169,6 @@ async function carregar() {
       </div>
     </div>
 
-    <!-- Stats grid -->
     <div class="stats-grid">
       <div class="stat-card cool">
         <div class="stat-icon">✅</div>
@@ -118,7 +194,19 @@ async function carregar() {
         <div class="stat-icon">📈</div>
         <div><div class="stat-label">Aproveitamento</div><div class="stat-value">${t.aproveitamento}%</div></div>
       </div>
+    </div>
+
+    <div class="card-app mb-2">
+      <div class="card-body">
+        <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.5rem">
+          <h2 style="font-family:'Sora',sans-serif;font-size:1.1rem;margin:0">👥 Elenco</h2>
+          ${isAdmin() ? `<button onclick="abrirModalJogador()" class="btn btn-primario btn-sm">+ Adicionar jogador</button>` : ''}
+        </div>
+        <div id="listaJogadores"><div class="texto-muted-2">Carregando...</div></div>
+      </div>
     </div>`;
+
+  carregarJogadores();
 }
 
 function abrirEditarNome() { document.getElementById('formEditarNome').classList.remove('oculto'); }
@@ -157,7 +245,7 @@ async function uploadEscudo(input) {
 }
 
 async function removerTime() {
-  if (!confirm(`Remover o time "${document.getElementById('nomeExibicao')?.textContent}"? Esta ação não pode ser desfeita.`)) return;
+  if (!await sConfirm(`Remover o time "${document.getElementById('nomeExibicao')?.textContent}"? Esta ação não pode ser desfeita.`, 'Remover time?', 'warning')) return;
   const resp = await apiFetch(`/api/times/${id}`, { method:'DELETE' });
   if (resp?.ok) location.href = '/index.html';
   else mostrarAlerta('Erro ao remover time.', 'erro');
@@ -173,5 +261,41 @@ function mostrarAlerta(msg, tipo) {
 
 carregar();
 </script>
+
+<!-- Modal jogador -->
+<div class="modal-overlay oculto" id="modalJogador">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-titulo" id="tituloModalJogador">Novo Jogador</div>
+    <div class="form-group">
+      <label class="form-label">Nome</label>
+      <input type="text" id="jogNome" class="input" placeholder="Nome do jogador">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Posição</label>
+      <select id="jogPosicao" class="select">
+        <option value="0">🧤 Goleiro</option>
+        <option value="1">🛡️ Zagueiro</option>
+        <option value="2">➡️ Lateral Direito</option>
+        <option value="3">⬅️ Lateral Esquerdo</option>
+        <option value="4">⚙️ Meio Campo</option>
+        <option value="5">⚽ Atacante</option>
+        <option value="6">🔄 Reserva</option>
+        <option value="7">📋 Técnico</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nível</label>
+      <div class="toggle-group" id="toggleNivelJog">
+        <button class="toggle-btn"        onclick="setNivelJog(0)" style="color:#3b82f6">🔵 Azul</button>
+        <button class="toggle-btn active" onclick="setNivelJog(1)" style="color:#eab308">🟡 Amarelo</button>
+        <button class="toggle-btn"        onclick="setNivelJog(2)" style="color:#22c55e">🟢 Verde</button>
+      </div>
+    </div>
+    <div class="modal-acoes">
+      <button onclick="fecharModalJogador()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="salvarJogador()" class="btn btn-primario">Salvar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

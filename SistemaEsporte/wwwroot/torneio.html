@@ -108,25 +108,37 @@ function renderizar() {
   const podeMM    = admin && t.formato === 1 && t.status === 1 &&
     t.partidas.filter(p => p.fase.startsWith('Grupo')).every(p => p.concluida);
 
+  const FMT_ICON = ['📊','🏆','⚔️','⚔️'];
+
   let html = `
-    <div class="flex items-center gap-1 mb-2" style="flex-wrap:wrap">
-      <a href="/torneios.html" class="btn btn-link btn-sm">← Torneios</a>
-    </div>
-    <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
-      <div>
-        <h1 class="page-title" style="margin-bottom:.5rem">
-          <span class="icon-badge">🏆</span>${t.nome}
-        </h1>
-        <div class="flex items-center gap-1" style="flex-wrap:wrap">
-          ${statusPill(t.status)}
-          <span class="texto-muted-2">${FORMATOS[t.formato]}</span>
-          ${t.status === 1 ? `<span class="texto-muted-2">· Rodada ${t.rodadaAtual || ''}/${t.totalRodadas || ''}</span>` : ''}
+    <a href="/torneios.html" class="btn btn-link btn-sm" style="margin-bottom:.75rem;display:inline-flex">← Torneios</a>
+
+    <div style="
+      background: radial-gradient(900px 280px at 10% -20%, rgba(22,163,74,0.22), transparent 60%),
+                  radial-gradient(600px 300px at 95% 110%, rgba(52,211,153,0.14), transparent 60%),
+                  linear-gradient(180deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%);
+      border:1px solid var(--border);border-radius:var(--radius-lg);
+      padding:2rem 2rem 2rem;margin-bottom:1.5rem">
+
+      <div class="flex justify-between items-start" style="flex-wrap:wrap;gap:1rem">
+        <div>
+          <div class="texto-muted-2" style="font-size:.8rem;margin-bottom:.35rem;letter-spacing:.06em;text-transform:uppercase">
+            ${FMT_ICON[t.formato]} ${FORMATOS[t.formato]}
+          </div>
+          <h1 style="font-family:'Sora',sans-serif;font-size:2rem;font-weight:800;margin:0 0 .75rem;color:var(--text-1);line-height:1.15">
+            ${t.nome}
+          </h1>
+          <div class="flex items-center gap-1" style="flex-wrap:wrap">
+            ${statusPill(t.status)}
+            ${t.status === 1 && t.totalRodadas ? `<span class="texto-muted-2" style="font-size:.85rem">Rodada ${t.rodadaAtual}/${t.totalRodadas}</span>` : ''}
+            ${t.times?.length ? `<span class="texto-muted-2" style="font-size:.85rem">${t.times.length} time${t.times.length !== 1 ? 's' : ''}</span>` : ''}
+          </div>
         </div>
-      </div>
-      <div class="flex gap-1" style="flex-wrap:wrap">
-        ${podeGerar ? `<button onclick="gerarTorneio()" class="btn btn-primario">⚡ Gerar torneio</button>` : ''}
-        ${podeMM    ? `<button onclick="gerarMataMata()" class="btn btn-primario">⚡ Gerar mata-mata</button>` : ''}
-        ${admin && t.status === 0 ? `<button onclick="abrirAddTime()" class="btn btn-secundario">+ Inscrever times</button>` : ''}
+        <div class="flex gap-1" style="flex-wrap:wrap;align-self:flex-start">
+          ${podeGerar ? `<button onclick="gerarTorneio()" class="btn btn-primario">⚡ Gerar torneio</button>` : ''}
+          ${podeMM    ? `<button onclick="gerarMataMata()" class="btn btn-primario">⚡ Gerar mata-mata</button>` : ''}
+          ${admin && t.status === 0 ? `<button onclick="abrirAddTime()" class="btn btn-secundario">+ Inscrever times</button>` : ''}
+        </div>
       </div>
     </div>
     <div id="alertaTorneio" class="alerta oculto"></div>`;

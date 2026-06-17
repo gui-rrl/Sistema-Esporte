@@ -18,6 +18,29 @@
     <button id="btnNovo" class="btn btn-primario oculto">+ Novo torneio</button>
   </div>
 
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem;margin-bottom:2rem">
+    <div class="card" style="padding:1rem">
+      <div style="font-size:1.4rem;margin-bottom:.35rem">📊</div>
+      <div style="font-weight:700;font-size:.9rem;color:var(--text-1);margin-bottom:.25rem">Pontos Corridos</div>
+      <div class="texto-muted-2" style="font-size:.8rem;line-height:1.4">Todos os times se enfrentam entre si. O campeão é quem acumula mais pontos ao final das rodadas. Modelo usado na <strong>Série A do Brasileirão</strong>.</div>
+    </div>
+    <div class="card" style="padding:1rem">
+      <div style="font-size:1.4rem;margin-bottom:.35rem">🏆</div>
+      <div style="font-weight:700;font-size:.9rem;color:var(--text-1);margin-bottom:.25rem">Copa (Grupos + Mata-Mata)</div>
+      <div class="texto-muted-2" style="font-size:.8rem;line-height:1.4">Fase de grupos seguida de eliminação direta. Os melhores de cada grupo avançam ao mata-mata. Modelo da <strong>Copa do Mundo FIFA</strong>.</div>
+    </div>
+    <div class="card" style="padding:1rem">
+      <div style="font-size:1.4rem;margin-bottom:.35rem">⚔️</div>
+      <div style="font-weight:700;font-size:.9rem;color:var(--text-1);margin-bottom:.25rem">Mata-Mata Simples</div>
+      <div class="texto-muted-2" style="font-size:.8rem;line-height:1.4">Eliminação direta em jogo único. Quem perde está fora. Formato rápido usado em <strong>torneios relâmpago</strong> e fases finais.</div>
+    </div>
+    <div class="card" style="padding:1rem">
+      <div style="font-size:1.4rem;margin-bottom:.35rem">⚔️</div>
+      <div style="font-weight:700;font-size:.9rem;color:var(--text-1);margin-bottom:.25rem">Mata-Mata Ida e Volta</div>
+      <div class="texto-muted-2" style="font-size:.8rem;line-height:1.4">Eliminação direta com dois jogos por confronto. O placar agregado decide o classificado. Modelo da <strong>Copa Libertadores</strong>.</div>
+    </div>
+  </div>
+
   <div id="listaTorneios">
     <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
   </div>
@@ -44,6 +67,15 @@
     <div class="form-group">
       <label class="form-label">Máx. times <span class="texto-muted-2">(0 = ilimitado)</span></label>
       <input type="number" id="tnMaxTimes" class="input" value="16" min="0">
+    </div>
+    <div id="campoLiga" class="oculto">
+      <div class="form-group">
+        <label class="form-label">Turno</label>
+        <div class="toggle-group" id="toggleIdaVolta">
+          <button type="button" class="toggle-btn active" data-value="true">🔄 Ida e volta</button>
+          <button type="button" class="toggle-btn" data-value="false">➡️ Somente ida</button>
+        </div>
+      </div>
     </div>
     <div id="campoCopa" class="oculto">
       <div class="flex gap-1">
@@ -81,6 +113,7 @@ if (isAdmin()) document.getElementById('btnNovo').classList.remove('oculto');
 document.getElementById('btnNovo').onclick = () => {
   document.getElementById('erroTorneio').classList.add('oculto');
   document.getElementById('tnNome').value = '';
+  document.querySelectorAll('#toggleIdaVolta .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===0));
   document.getElementById('modalTorneio').classList.remove('oculto');
 };
 
@@ -88,7 +121,21 @@ const FORMATOS = ['Pontos Corridos','Copa','Mata-Mata Simples','Mata-Mata Ida e 
 const FMT_ICON = ['📊','🏆','⚔️','⚔️'];
 
 function atualizarCampos() {
-  document.getElementById('campoCopa').classList.toggle('oculto', parseInt(document.getElementById('tnFormato').value) !== 1);
+  const fmt = parseInt(document.getElementById('tnFormato').value);
+  document.getElementById('campoLiga').classList.toggle('oculto', fmt !== 0);
+  document.getElementById('campoCopa').classList.toggle('oculto', fmt !== 1);
+}
+
+// Toggle ida/volta
+document.getElementById('toggleIdaVolta').addEventListener('click', e => {
+  const btn = e.target.closest('.toggle-btn');
+  if (!btn) return;
+  document.querySelectorAll('#toggleIdaVolta .toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+function getIdaVolta() {
+  return document.querySelector('#toggleIdaVolta .toggle-btn.active')?.dataset.value !== 'false';
 }
 
 function statusPill(s) {
@@ -146,6 +193,7 @@ async function criarTorneio() {
     method: 'POST',
     body: JSON.stringify({
       nome, formato: fmt,
+      idaVolta: getIdaVolta(),
       maxTimes: parseInt(document.getElementById('tnMaxTimes').value) || 0,
       dataInicio: inicio ? new Date(inicio).toISOString() : null,
       dataFim:    fim    ? new Date(fim).toISOString()    : null,

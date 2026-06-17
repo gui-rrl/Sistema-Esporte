@@ -7,12 +7,17 @@ namespace SistemaEsporte.Dados
     {
         public ContextoBanco(DbContextOptions<ContextoBanco> opcoes) : base(opcoes) { }
 
-        public DbSet<Time>          Times          { get; set; }
-        public DbSet<Partida>       Partidas       { get; set; }
-        public DbSet<Torneio>       Torneios       { get; set; }
-        public DbSet<TorneioTime>   TorneioTimes   { get; set; }
-        public DbSet<PartidaTorneio> PartidasTorneio { get; set; }
-        public DbSet<Usuario>       Usuarios       { get; set; }
+        public DbSet<Time>            Times             { get; set; }
+        public DbSet<Partida>         Partidas          { get; set; }
+        public DbSet<Torneio>         Torneios          { get; set; }
+        public DbSet<TorneioTime>     TorneioTimes      { get; set; }
+        public DbSet<PartidaTorneio>  PartidasTorneio   { get; set; }
+        public DbSet<Usuario>         Usuarios          { get; set; }
+        public DbSet<Jogador>         Jogadores         { get; set; }
+        public DbSet<Pelada>          Peladas           { get; set; }
+        public DbSet<InscricaoPelada> InscricoesPelada  { get; set; }
+        public DbSet<PunicaoJogador>  PunicoesJogador   { get; set; }
+        public DbSet<JogadorPelada>   JogadoresPelada   { get; set; }
 
         protected override void OnModelCreating(ModelBuilder mb)
         {
@@ -44,6 +49,16 @@ namespace SistemaEsporte.Dados
 
             mb.Entity<PartidaTorneio>()
               .HasOne(p => p.Torneio).WithMany(t => t.Partidas).HasForeignKey(p => p.TorneioId).OnDelete(DeleteBehavior.Cascade);
+
+            mb.Entity<InscricaoPelada>()
+              .HasOne(i => i.Pelada).WithMany(p => p.Inscricoes).HasForeignKey(i => i.PeladaId).OnDelete(DeleteBehavior.Cascade);
+            mb.Entity<InscricaoPelada>()
+              .HasOne(i => i.Jogador).WithMany(j => j.Inscricoes).HasForeignKey(i => i.JogadorId).OnDelete(DeleteBehavior.SetNull);
+            mb.Entity<InscricaoPelada>()
+              .HasOne(i => i.JogadorPelada).WithMany(jp => jp.Inscricoes).HasForeignKey(i => i.JogadorPeladaId).OnDelete(DeleteBehavior.SetNull);
+
+            mb.Entity<PunicaoJogador>()
+              .HasOne(p => p.Jogador).WithMany(j => j.Punicoes).HasForeignKey(p => p.JogadorId).OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

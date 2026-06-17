@@ -85,6 +85,7 @@ namespace SistemaEsporte.Controladores
                 NumeroGrupos            = dto.NumeroGrupos ?? 4,
                 TimesPorGrupo           = dto.TimesPorGrupo ?? 4,
                 ClassificadosPorGrupo   = dto.ClassificadosPorGrupo ?? 2,
+                IdaVolta                = dto.IdaVolta ?? true,
                 CodigoConvite = Guid.NewGuid().ToString("N")[..8].ToUpper(),
             };
             _db.Torneios.Add(torneio);
@@ -111,11 +112,26 @@ namespace SistemaEsporte.Controladores
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Remover(int id)
         {
-            var torneio = await _db.Torneios.FindAsync(id);
-            if (torneio == null) return NotFound();
-            _db.Torneios.Remove(torneio);
-            await _db.SaveChangesAsync();
-            return NoContent();
+            try
+            {
+                var torneio = await _db.Torneios
+                    .Include(t => t.Partidas)
+                    .Include(t => t.Times)
+                    .FirstOrDefaultAsync(t => t.Id == id);
+                if (torneio == null) return NotFound();
+                foreach (var p in torneio.Partidas ?? [])
+                    p.ProximaPartidaId = null;
+                await _db.SaveChangesAsync();
+                _db.PartidasTorneio.RemoveRange(torneio.Partidas ?? []);
+                _db.TorneioTimes.RemoveRange(torneio.Times ?? []);
+                _db.Torneios.Remove(torneio);
+                await _db.SaveChangesAsync();
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { erro = ex.Message, inner = ex.InnerException?.Message });
+            }
         }
 
         // POST api/torneios/{id}/times
@@ -247,8 +263,8 @@ namespace SistemaEsporte.Controladores
 
             partida.VencedorId = vencedorId;
 
-            // Atualiza estatísticas do TorneioTime
-            AtualizarEstatisticasTorneio(torneio, partida, dto);
+            // Atualiza estatísticas do TorneioTime e propaga para Time
+            await AtualizarEstatisticasTorneioAsync(torneio, partida, dto);
 
             // Avança vencedor para a próxima partida (mata-mata)
             if (partida.ProximaPartidaId.HasValue && vencedorId.HasValue)
@@ -272,37 +288,46 @@ namespace SistemaEsporte.Controladores
             return Ok(new { mensagem = "Resultado registrado." });
         }
 
-        private static void AtualizarEstatisticasTorneio(Torneio torneio, PartidaTorneio partida, ResultadoPartidaDto dto)
+        private async Task AtualizarEstatisticasTorneioAsync(Torneio torneio, PartidaTorneio partida, ResultadoPartidaDto dto)
         {
-            var t1 = torneio.Times.FirstOrDefault(t => t.Id == partida.Time1Id);
-            var t2 = torneio.Times.FirstOrDefault(t => t.Id == partida.Time2Id);
-            if (t1 == null || t2 == null) return;
+            var tt1 = torneio.Times.FirstOrDefault(t => t.Id == partida.Time1Id);
+            var tt2 = torneio.Times.FirstOrDefault(t => t.Id == partida.Time2Id);
+            if (tt1 == null || tt2 == null) return;
 
-            t1.GolsMarcados += dto.GolsTime1;
-            t1.GolsSofridos += dto.GolsTime2;
-            t2.GolsMarcados += dto.GolsTime2;
-            t2.GolsSofridos += dto.GolsTime1;
-            t1.SaldoGols = t1.GolsMarcados - t1.GolsSofridos;
-            t2.SaldoGols = t2.GolsMarcados - t2.GolsSofridos;
-            t1.PartidasJogadas++;
-            t2.PartidasJogadas++;
+            tt1.GolsMarcados += dto.GolsTime1;
+            tt1.GolsSofridos += dto.GolsTime2;
+            tt2.GolsMarcados += dto.GolsTime2;
+            tt2.GolsSofridos += dto.GolsTime1;
+            tt1.SaldoGols = tt1.GolsMarcados - tt1.GolsSofridos;
+            tt2.SaldoGols = tt2.GolsMarcados - tt2.GolsSofridos;
+            tt1.PartidasJogadas++;
+            tt2.PartidasJogadas++;
 
-            if (dto.GolsTime1 > dto.GolsTime2)
+            bool t1Venceu, t2Venceu, empate;
+            if (dto.GolsTime1 > dto.GolsTime2)       { t1Venceu = true;  t2Venceu = false; empate = false; tt1.Pontos += 3; tt1.Vitorias++; tt2.Derrotas++; }
+            else if (dto.GolsTime1 < dto.GolsTime2)  { t1Venceu = false; t2Venceu = true;  empate = false; tt2.Pontos += 3; tt2.Vitorias++; tt1.Derrotas++; }
+            else                                      { t1Venceu = false; t2Venceu = false; empate = true;  tt1.Pontos++; tt2.Pontos++; tt1.Empates++; tt2.Empates++; }
+
+            // Propaga para Time global (só times reais, não convidados)
+            var ids = new[] { tt1.TimeId, tt2.TimeId }.Where(x => x.HasValue).Select(x => x!.Value).ToList();
+            if (!ids.Any()) return;
+            var times = await _db.Times.Where(t => ids.Contains(t.Id)).ToListAsync();
+
+            void AtualizarTime(Time time, bool venceu, bool perdeu, int golsMarcados, int golsSofridos)
             {
-                t1.Pontos += 3; t1.Vitorias++; t2.Derrotas++;
+                time.TotalGolsMarcados += golsMarcados;
+                time.TotalGolsSofridos += golsSofridos;
+                if (venceu)       { time.Pontuacao += 3; time.TotalVitorias++; }
+                else if (perdeu)  { time.TotalDerrotas++; }
+                else              { time.Pontuacao++;     time.TotalEmpates++; }
             }
-            else if (dto.GolsTime1 < dto.GolsTime2)
-            {
-                t2.Pontos += 3; t2.Vitorias++; t1.Derrotas++;
-            }
-            else
-            {
-                t1.Pontos++; t2.Pontos++; t1.Empates++; t2.Empates++;
-            }
+
+            if (tt1.TimeId.HasValue) { var t = times.FirstOrDefault(x => x.Id == tt1.TimeId.Value); if (t != null) AtualizarTime(t, t1Venceu, t2Venceu, dto.GolsTime1, dto.GolsTime2); }
+            if (tt2.TimeId.HasValue) { var t = times.FirstOrDefault(x => x.Id == tt2.TimeId.Value); if (t != null) AtualizarTime(t, t2Venceu, t1Venceu, dto.GolsTime2, dto.GolsTime1); }
         }
     }
 
-    public record CriarTorneioDto(string Nome, FormatoTorneio Formato, int? MaxTimes, DateTime? DataInicio, DateTime? DataFim, int? NumeroGrupos, int? TimesPorGrupo, int? ClassificadosPorGrupo);
+    public record CriarTorneioDto(string Nome, FormatoTorneio Formato, int? MaxTimes, DateTime? DataInicio, DateTime? DataFim, int? NumeroGrupos, int? TimesPorGrupo, int? ClassificadosPorGrupo, bool? IdaVolta);
     public record AtualizarTorneioDto(string? Nome, DateTime? DataInicio, DateTime? DataFim);
     public record AdicionarTimeDto(int TimeId);
     public record ResultadoPartidaDto(int GolsTime1, int GolsTime2, int? GolsTime1Volta, int? GolsTime2Volta, DateTime? DataPartida);

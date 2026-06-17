@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil do Jogador — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="app-navbar" id="navbar"></nav>
+
+<main class="container page">
+  <div id="conteudo">
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+  </div>
+</main>
+
+<!-- Modal punição -->
+<div class="modal-overlay oculto" id="modalPunicao">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-titulo">Suspender Jogador</div>
+    <div class="form-group">
+      <label class="form-label">Motivo</label>
+      <input type="text" id="punicaoMotivo" class="input" placeholder="Ex: Ausência sem justificativa">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Duração (dias)</label>
+      <input type="number" id="punicaoDias" class="input" value="30" min="1" max="365">
+    </div>
+    <div class="modal-acoes">
+      <button onclick="fecharModalPunicao()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="aplicarPunicao()" class="btn btn-perigo">Suspender</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+const id = new URLSearchParams(location.search).get('id');
+if (!id) location.href = '/index.html';
+
+const POSICOES     = ['Goleiro','Zagueiro','Lateral Direito','Lateral Esquerdo','Meio Campo','Atacante','Reserva','Técnico'];
+const POSICAO_ICON = ['🧤','🛡️','➡️','⬅️','⚙️','⚽','🔄','📋'];
+const FORMATO_LABEL = { PontosCorridos:'Pontos Corridos', Copa:'Copa', MataMataSimples:'Mata-Mata Simples', MataMataIdaVolta:'Mata-Mata Ida e Volta' };
+const NIVEL_LABEL  = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
+const NIVEL_COR    = ['#3b82f6','#eab308','#22c55e'];
+
+async function carregar() {
+  const resp = await apiFetch(`/api/jogadores/${id}`);
+  if (!resp?.ok) {
+    document.getElementById('conteudo').innerHTML = '<div class="empty-state"><div class="icon">❌</div><div class="title">Jogador não encontrado</div></div>';
+    return;
+  }
+  const j = await resp.json();
+  const ehGoleiro = j.posicaoId === 0;
+  const aproveitamento = j.partidas > 0 ? Math.round((j.vitorias * 3) / (j.partidas * 3) * 100) : 0;
+  const nivel = j.nivel ?? 1;
+
+  document.title = `${j.nome} — Sistema Esporte`;
+
+  document.getElementById('conteudo').innerHTML = `
+    <!-- Hero -->
+    <div style="
+      background: radial-gradient(800px 300px at 20% -10%, rgba(22,163,74,0.18), transparent 60%),
+                  radial-gradient(600px 300px at 100% 100%, rgba(52,211,153,0.12), transparent 60%),
+                  linear-gradient(180deg,rgba(255,255,255,0.055) 0%,rgba(255,255,255,0.02) 100%);
+      border:1px solid var(--border);border-radius:var(--radius-lg);
+      padding:2rem;margin-bottom:1.5rem;
+      display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+
+      <div style="
+        width:80px;height:80px;border-radius:50%;
+        background:var(--gradient-primary);color:#fff;
+        display:inline-flex;align-items:center;justify-content:center;
+        font-size:2rem;box-shadow:var(--shadow-glow)">
+        ${POSICAO_ICON[j.posicaoId]}
+      </div>
+
+      <div style="flex:1;min-width:180px">
+        <div class="flex items-center gap-1" style="margin-bottom:.2rem;flex-wrap:wrap">
+          <span class="texto-muted-2" style="font-size:.8rem">${POSICOES[j.posicaoId]}</span>
+          <span style="font-size:.72rem;padding:.15rem .5rem;border-radius:99px;font-weight:600;
+            background:${NIVEL_COR[nivel]}22;color:${NIVEL_COR[nivel]}">${NIVEL_LABEL[nivel]}</span>
+          ${j.punidoAtivo ? '<span style="font-size:.72rem;padding:.15rem .5rem;border-radius:99px;font-weight:600;background:#ef444422;color:#ef4444">🚫 Suspenso</span>' : ''}
+        </div>
+        <h1 style="font-family:\'Sora\',sans-serif;font-size:1.9rem;margin:0 0 .4rem">${j.nome}</h1>
+        <a href="/time.html?id=${j.timeId}" class="btn btn-link btn-sm">← ${j.timeNome}</a>
+      </div>
+
+      ${isAdmin() ? `
+      <div class="flex gap-1" style="align-self:flex-start;flex-wrap:wrap">
+        <button onclick="abrirModalPunicao()" class="btn btn-perigo btn-sm">🚫 Suspender</button>
+      </div>` : ''}
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" style="margin-bottom:1.5rem">
+      <div class="stat-card cool">
+        <div class="stat-icon">✅</div>
+        <div><div class="stat-label">Vitórias</div><div class="stat-value">${j.vitorias}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🤝</div>
+        <div><div class="stat-label">Empates</div><div class="stat-value">${j.empates}</div></div>
+      </div>
+      <div class="stat-card warm">
+        <div class="stat-icon">❌</div>
+        <div><div class="stat-label">Derrotas</div><div class="stat-value">${j.derrotas}</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚽</div>
+        <div><div class="stat-label">Gols marcados</div><div class="stat-value">${j.golsMarcados}</div></div>
+      </div>
+      ${ehGoleiro ? `
+      <div class="stat-card warm">
+        <div class="stat-icon">🥅</div>
+        <div><div class="stat-label">Gols sofridos</div><div class="stat-value">${j.golsSofridos}</div></div>
+      </div>` : ''}
+      <div class="stat-card cool">
+        <div class="stat-icon">📈</div>
+        <div><div class="stat-label">Aproveitamento</div><div class="stat-value">${aproveitamento}%</div></div>
+      </div>
+    </div>
+
+    <!-- Punições (admin) -->
+    ${isAdmin() ? `
+    <div class="card-app mb-2">
+      <div class="card-body">
+        <h2 style="font-family:\'Sora\',sans-serif;font-size:1.1rem;margin:0 0 .75rem">🚫 Suspensões</h2>
+        <div id="listaPunicoes"><div class="texto-muted-2" style="font-size:.85rem">Carregando...</div></div>
+      </div>
+    </div>` : ''}
+
+    <!-- Histórico de torneios -->
+    <div class="card-app">
+      <div class="card-body">
+        <h2 style="font-family:\'Sora\',sans-serif;font-size:1.1rem;margin:0 0 1rem">🏆 Torneios disputados</h2>
+        ${j.historico.length === 0
+          ? '<div class="texto-muted-2">O time deste jogador ainda não disputou torneios.</div>'
+          : `<div style="display:flex;flex-direction:column;gap:.5rem">
+              ${j.historico.map(h => `
+                <div class="partida-row hover-lift" style="cursor:pointer" onclick="location.href='/torneio.html?id=${h.torneioId}'">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:.9rem">${h.torneioNome}</div>
+                    <div class="texto-muted-2" style="font-size:.78rem">
+                      ${FORMATO_LABEL[h.formato] ?? h.formato}
+                      ${h.grupo ? ' · Grupo ' + h.grupo : ''}
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:.75rem;align-items:center;flex-shrink:0">
+                    <span style="font-size:.82rem;color:var(--text-2)">${h.vitorias}V ${h.empates}E ${h.derrotas}D</span>
+                    <span class="score-pill" style="font-size:.8rem">${h.pontos} pts</span>
+                  </div>
+                </div>`).join('')}
+            </div>`}
+      </div>
+    </div>`;
+
+  if (isAdmin()) carregarPunicoes();
+}
+
+async function carregarPunicoes() {
+  const resp = await apiFetch(`/api/jogadores/${id}/punicoes`);
+  const el = document.getElementById('listaPunicoes');
+  if (!el) return;
+  if (!resp?.ok) { el.innerHTML = '<div class="texto-muted-2" style="font-size:.85rem">Erro ao carregar.</div>'; return; }
+  const lista = await resp.json();
+  if (!lista.length) { el.innerHTML = '<div class="texto-muted-2" style="font-size:.85rem">Nenhuma suspensão registrada.</div>'; return; }
+  el.innerHTML = lista.map(p => {
+    const inicio = new Date(p.dataInicio).toLocaleDateString('pt-BR');
+    const fim    = new Date(p.dataFim).toLocaleDateString('pt-BR');
+    return `
+    <div class="partida-row" style="margin-bottom:.4rem">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.88rem;font-weight:600">${p.motivo || 'Sem motivo informado'}</div>
+        <div class="texto-muted-2" style="font-size:.75rem">${inicio} → ${fim}</div>
+      </div>
+      <span style="font-size:.72rem;padding:.15rem .4rem;border-radius:99px;font-weight:600;flex-shrink:0;
+        ${p.ativa ? 'background:#ef444422;color:#ef4444' : 'background:var(--surface-strong);color:var(--text-3)'}">
+        ${p.ativa ? 'Ativa' : 'Encerrada'}
+      </span>
+      <button onclick="removerPunicao(${p.id})" class="btn btn-secundario btn-sm" style="padding:.15rem .4rem;font-size:.75rem">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function abrirModalPunicao() {
+  document.getElementById('punicaoMotivo').value = '';
+  document.getElementById('punicaoDias').value = 30;
+  document.getElementById('modalPunicao').classList.remove('oculto');
+}
+function fecharModalPunicao() { document.getElementById('modalPunicao').classList.add('oculto'); }
+
+async function aplicarPunicao() {
+  const motivo = document.getElementById('punicaoMotivo').value.trim();
+  const dias   = parseInt(document.getElementById('punicaoDias').value);
+  const resp = await apiFetch(`/api/jogadores/${id}/punicoes`, {
+    method: 'POST', body: JSON.stringify({ motivo, dias }),
+  });
+  if (resp?.ok) { fecharModalPunicao(); carregar(); }
+  else mostrarAlerta('Erro ao aplicar suspensão.', 'erro');
+}
+
+async function removerPunicao(punicaoId) {
+  if (!await sConfirm('Remover esta suspensão?', 'Confirmar', 'warning')) return;
+  const resp = await apiFetch(`/api/punicoes/${punicaoId}`, { method: 'DELETE' });
+  if (resp?.ok) carregarPunicoes();
+  else mostrarAlerta('Erro ao remover suspensão.', 'erro');
+}
+
+function mostrarAlerta(msg, tipo) {
+  const el = document.createElement('div');
+  el.className = `alerta alerta-${tipo}`;
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+carregar();
+</script>
+</body>
+</html>

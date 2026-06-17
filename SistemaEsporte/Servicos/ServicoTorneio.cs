@@ -31,20 +31,24 @@ namespace SistemaEsporte.Servicos
             var times = torneio.Times.ToList();
             var novas = new List<PartidaTorneio>();
 
-            // Algoritmo round-robin (ida e volta)
+            // Algoritmo round-robin
             int n = times.Count;
             var lista = times.ToList();
             if (n % 2 != 0) lista.Add(null!); // bye se ímpar
-            int numTimes = lista.Count;
+            int numTimes  = lista.Count;
+            int turnos    = torneio.IdaVolta ? 2 : 1;
 
-            for (int ida = 0; ida < 2; ida++)
+            for (int ida = 0; ida < turnos; ida++)
             {
+                var rodadaLista = times.ToList();
+                if (n % 2 != 0) rodadaLista.Add(null!);
+
                 for (int rodada = 0; rodada < numTimes - 1; rodada++)
                 {
                     for (int i = 0; i < numTimes / 2; i++)
                     {
-                        var tA = lista[i];
-                        var tB = lista[numTimes - 1 - i];
+                        var tA = rodadaLista[i];
+                        var tB = rodadaLista[numTimes - 1 - i];
                         if (tA == null || tB == null) continue;
 
                         novas.Add(new PartidaTorneio
@@ -57,12 +61,12 @@ namespace SistemaEsporte.Servicos
                         });
                     }
                     // Rotaciona (mantém o primeiro fixo)
-                    lista.Insert(1, lista[^1]);
-                    lista.RemoveAt(lista.Count - 1);
+                    rodadaLista.Insert(1, rodadaLista[^1]);
+                    rodadaLista.RemoveAt(rodadaLista.Count - 1);
                 }
             }
 
-            torneio.TotalRodadas = 2 * (numTimes - 1);
+            torneio.TotalRodadas = turnos * (numTimes - 1);
             torneio.RodadaAtual  = 1;
             torneio.Status       = StatusTorneio.EmAndamento;
 

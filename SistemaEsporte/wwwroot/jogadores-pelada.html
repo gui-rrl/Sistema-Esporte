@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jogadores das Peladas — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="app-navbar" id="navbar"></nav>
+
+<main class="container page">
+
+  <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
+    <h1 class="page-title"><span class="icon-badge">⚽</span> Jogadores das Peladas</h1>
+    <div style="position:relative">
+      <span style="position:absolute;left:.8rem;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none">🔍</span>
+      <input type="search" id="busca" class="input" style="width:220px;padding-left:2.2rem" placeholder="Buscar jogador...">
+    </div>
+  </div>
+
+  <div class="card-app">
+    <div class="tabela-wrap">
+      <table class="table-app" id="tabela">
+        <thead>
+          <tr>
+            <th>Jogador</th>
+            <th>Nível</th>
+            <th>Telefone</th>
+            <th class="col-num">Peladas</th>
+            <th>Última pelada</th>
+            ${isAdminSync() ? '<th></th>' : ''}
+          </tr>
+        </thead>
+        <tbody id="corpo">
+          <tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:2.5rem">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="rodape" class="texto-muted-2" style="padding:.6rem 1rem;font-size:.8rem"></div>
+  </div>
+</main>
+
+<!-- Modal editar -->
+<div class="modal-overlay oculto" id="modalEditar">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-titulo">Editar Jogador</div>
+    <div class="form-group">
+      <label class="form-label">Nome</label>
+      <input type="text" id="editNome" class="input">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Telefone</label>
+      <input type="text" id="editTelefone" class="input" placeholder="(00) 00000-0000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nível</label>
+      <div class="toggle-group" id="toggleNivelEdit">
+        <button class="toggle-btn" onclick="setNivelEdit(0)" style="color:#3b82f6">🔵 Azul</button>
+        <button class="toggle-btn active" onclick="setNivelEdit(1)" style="color:#eab308">🟡 Amarelo</button>
+        <button class="toggle-btn" onclick="setNivelEdit(2)" style="color:#22c55e">🟢 Verde</button>
+      </div>
+    </div>
+    <div class="modal-acoes">
+      <button onclick="fecharModal()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="salvar()" class="btn btn-primario">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+
+const NIVEL_LABEL = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
+const NIVEL_COR   = ['#3b82f6','#eab308','#22c55e'];
+
+let _todos = [];
+let editandoId = null;
+
+// helper síncrono para renderizar o <th> antes do JS rodar
+function isAdminSync() { try { return JSON.parse(atob(localStorage.getItem('token')?.split('.')[1] ?? 'e30='))?.role === 'Admin'; } catch { return false; } }
+
+async function carregar() {
+  const resp = await apiFetch('/api/jogadores-pelada');
+  if (!resp?.ok) return;
+  _todos = await resp.json();
+  renderizar();
+}
+
+function renderizar() {
+  const busca = document.getElementById('busca').value.toLowerCase();
+  const lista = busca ? _todos.filter(j => j.nome.toLowerCase().includes(busca)) : _todos;
+  const admin = isAdmin();
+  const corpo = document.getElementById('corpo');
+
+  if (!lista.length) {
+    corpo.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+      <div class="icon">⚽</div>
+      <div class="title">${busca ? 'Nenhum jogador encontrado' : 'Nenhum jogador cadastrado ainda'}</div>
+      <div>Os jogadores aparecem aqui ao se inscreverem nas peladas</div>
+    </div></td></tr>`;
+    document.getElementById('rodape').textContent = '';
+    return;
+  }
+
+  corpo.innerHTML = lista.map(j => {
+    const ultima = j.ultimaPelada
+      ? new Date(j.ultimaPelada).toLocaleDateString('pt-BR')
+      : '—';
+    return `
+    <tr>
+      <td style="font-weight:600">${j.nome}</td>
+      <td>
+        <span style="font-size:.75rem;padding:.15rem .5rem;border-radius:99px;font-weight:600;
+          background:${NIVEL_COR[j.nivel]}22;color:${NIVEL_COR[j.nivel]}">${NIVEL_LABEL[j.nivel]}</span>
+      </td>
+      <td style="color:var(--text-2)">${j.telefone || '—'}</td>
+      <td class="col-num">${j.totalPeladas}</td>
+      <td style="color:var(--text-3);font-size:.85rem">${ultima}</td>
+      ${admin ? `
+      <td>
+        <div class="flex gap-1">
+          <button onclick="abrirEditar(${j.id})" class="btn btn-secundario btn-sm">✏️</button>
+          <button onclick="excluir(${j.id})" class="btn btn-perigo btn-sm">🗑️</button>
+        </div>
+      </td>` : '<td></td>'}
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rodape').textContent =
+    `${lista.length} jogador${lista.length !== 1 ? 'es' : ''} cadastrado${lista.length !== 1 ? 's' : ''}.`;
+}
+
+function abrirEditar(id) {
+  const j = _todos.find(x => x.id === id);
+  if (!j) return;
+  editandoId = id;
+  document.getElementById('editNome').value     = j.nome;
+  document.getElementById('editTelefone').value = j.telefone || '';
+  document.querySelectorAll('#toggleNivelEdit .toggle-btn').forEach((b,i) => b.classList.toggle('active', i === j.nivel));
+  document.getElementById('modalEditar').classList.remove('oculto');
+}
+
+function fecharModal() { document.getElementById('modalEditar').classList.add('oculto'); }
+function setNivelEdit(v) {
+  document.querySelectorAll('#toggleNivelEdit .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+}
+
+async function salvar() {
+  const nome     = document.getElementById('editNome').value.trim();
+  const telefone = document.getElementById('editTelefone').value.trim();
+  const nivel    = [...document.querySelectorAll('#toggleNivelEdit .toggle-btn')].findIndex(b => b.classList.contains('active'));
+  if (!nome) return;
+  const resp = await apiFetch(`/api/jogadores-pelada/${editandoId}`, {
+    method: 'PUT', body: JSON.stringify({ nome, telefone, nivel: nivel >= 0 ? nivel : 1 }),
+  });
+  if (resp?.ok) { fecharModal(); carregar(); }
+}
+
+async function excluir(id) {
+  if (!await sConfirm('Este jogador será removido da lista. As inscrições anteriores serão mantidas.', 'Remover jogador?', 'warning')) return;
+  const resp = await apiFetch(`/api/jogadores-pelada/${id}`, { method: 'DELETE' });
+  if (resp?.ok) carregar();
+}
+
+document.getElementById('busca').addEventListener('input', renderizar);
+carregar();
+</script>
+</body>
+</html>

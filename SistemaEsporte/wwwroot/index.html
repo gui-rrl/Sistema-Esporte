@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema Esporte — Ranking</title>
+  <title>Sistema Esporte — Times</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -11,47 +11,50 @@
 
 <main class="container page">
 
-  <!-- Stats -->
+  <!-- Stats gerais -->
   <div class="stats-grid" id="statsGerais"></div>
 
   <!-- Header da tabela -->
   <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
     <h1 class="page-title">
-      <span class="icon-badge">🏅</span>
-      Ranking Geral
+      <span class="icon-badge">👥</span>
+      Times
     </h1>
-    <div class="flex gap-1 items-center">
+    <div class="flex gap-1 items-center" style="flex-wrap:wrap">
       <div style="position:relative">
         <span style="position:absolute;left:.8rem;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none">🔍</span>
-        <input type="search" id="busca" class="input" style="width:260px;padding-left:2.2rem" placeholder="Buscar time...">
+        <input type="search" id="busca" class="input" style="width:220px;padding-left:2.2rem" placeholder="Buscar time...">
       </div>
+      <select id="limitePorPagina" class="select" style="width:auto">
+        <option value="50">50 por página</option>
+        <option value="100">100 por página</option>
+        <option value="200">200 por página</option>
+        <option value="0">Todos</option>
+      </select>
       <button id="btnNovoTime" class="btn btn-primario oculto">+ Novo time</button>
     </div>
   </div>
 
   <div class="card-app">
     <div class="tabela-wrap">
-      <table class="table-app" id="tabelaRanking">
+      <table class="table-app" id="tabelaTimes">
         <thead>
           <tr>
-            <th class="col-num" style="width:52px">#</th>
             <th>Time</th>
-            <th class="col-num">Pts</th>
             <th class="col-num">PJ</th>
             <th class="col-num">V</th>
             <th class="col-num">E</th>
             <th class="col-num">D</th>
-            <th class="col-num">GM</th>
-            <th class="col-num">GS</th>
             <th class="col-num">SG</th>
-            <th class="col-num">%</th>
+            <th class="col-num">GS</th>
           </tr>
         </thead>
-        <tbody id="corpoRanking">
-          <tr><td colspan="11" style="text-align:center;color:var(--text-3);padding:2.5rem">Carregando...</td></tr>
+        <tbody id="corpoTimes">
+          <tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:2.5rem">Carregando...</td></tr>
         </tbody>
       </table>
     </div>
+    <div id="rodapePaginacao" class="texto-muted-2" style="padding:.6rem 1rem;font-size:.8rem"></div>
   </div>
 </main>
 
@@ -104,53 +107,59 @@ async function carregarDados() {
 
   if (rTimes?.ok) {
     window._times = await rTimes.json();
-    renderizarRanking(window._times);
+    renderizarTabela();
   }
 
   if (isAdmin()) document.getElementById('btnNovoTime').classList.remove('oculto');
 }
 
-function badgePos(pos) {
-  const cls = pos === 1 ? 'rank-1' : pos === 2 ? 'rank-2' : pos === 3 ? 'rank-3' : '';
-  return `<span class="rank-badge ${cls}">${pos}</span>`;
-}
+function renderizarTabela() {
+  const busca  = document.getElementById('busca').value.toLowerCase();
+  const limite = parseInt(document.getElementById('limitePorPagina').value);
+  const todos  = window._times || [];
 
-function renderizarRanking(times) {
-  const corpo = document.getElementById('corpoRanking');
-  if (!times.length) {
-    corpo.innerHTML = `<tr><td colspan="11">
+  let filtrados = busca ? todos.filter(t => t.nome.toLowerCase().includes(busca)) : todos;
+  const total   = filtrados.length;
+  if (limite > 0) filtrados = filtrados.slice(0, limite);
+
+  const corpo = document.getElementById('corpoTimes');
+  if (!filtrados.length) {
+    corpo.innerHTML = `<tr><td colspan="7">
       <div class="empty-state">
         <div class="icon">⚽</div>
-        <div class="title">Nenhum time cadastrado</div>
-        <div>Crie o primeiro time para começar</div>
+        <div class="title">${busca ? 'Nenhum time encontrado' : 'Nenhum time cadastrado'}</div>
+        ${busca ? '' : '<div>Crie o primeiro time para começar</div>'}
       </div></td></tr>`;
+    document.getElementById('rodapePaginacao').textContent = '';
     return;
   }
-  corpo.innerHTML = times.map(t => `
-    <tr>
-      <td class="col-num">${badgePos(t.posicao)}</td>
+
+  corpo.innerHTML = filtrados.map(t => `
+    <tr style="cursor:pointer" onclick="location.href='/time.html?id=${t.id}'">
       <td>
         <div class="time-nome">
           <img class="escudo" src="${t.escudoUrl || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
-          <a href="/time.html?id=${t.id}">${t.nome}</a>
+          <span>${t.nome}</span>
         </div>
       </td>
-      <td class="col-num"><span class="score-pill">${t.pontuacao}</span></td>
       <td class="col-num">${t.partidas}</td>
       <td class="col-num" style="color:var(--success);font-weight:600">${t.totalVitorias}</td>
       <td class="col-num" style="color:var(--warning)">${t.totalEmpates}</td>
       <td class="col-num" style="color:var(--danger)">${t.totalDerrotas}</td>
-      <td class="col-num">${t.totalGolsMarcados}</td>
-      <td class="col-num">${t.totalGolsSofridos}</td>
       <td class="col-num">${t.saldoGols >= 0 ? '+' + t.saldoGols : t.saldoGols}</td>
-      <td class="col-num" style="color:var(--text-2)">${t.aproveitamento}%</td>
+      <td class="col-num">${t.totalGolsSofridos}</td>
     </tr>`).join('');
+
+  const rodape = document.getElementById('rodapePaginacao');
+  if (limite > 0 && total > limite) {
+    rodape.textContent = `Exibindo ${filtrados.length} de ${total} times. Aumente o filtro para ver mais.`;
+  } else {
+    rodape.textContent = `${total} time${total !== 1 ? 's' : ''} encontrado${total !== 1 ? 's' : ''}.`;
+  }
 }
 
-document.getElementById('busca').addEventListener('input', e => {
-  const q = e.target.value.toLowerCase();
-  renderizarRanking((window._times || []).filter(t => t.nome.toLowerCase().includes(q)));
-});
+document.getElementById('busca').addEventListener('input', renderizarTabela);
+document.getElementById('limitePorPagina').addEventListener('change', renderizarTabela);
 
 document.getElementById('btnNovoTime').addEventListener('click', () => {
   document.getElementById('inputNomeTime').value = '';

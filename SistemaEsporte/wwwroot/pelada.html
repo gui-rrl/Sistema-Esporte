@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pelada — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="app-navbar" id="navbar"></nav>
+
+<main class="container page">
+  <div id="conteudo">
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+  </div>
+</main>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+const id = new URLSearchParams(location.search).get('id');
+if (!id) location.href = '/peladas.html';
+
+const STATUS_LABEL = ['Aberta','Fechada','Realizada'];
+const STATUS_COR   = ['var(--success)','var(--warning)','var(--text-3)'];
+const NIVEL_LABEL  = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
+const NIVEL_COR    = ['#3b82f6','#eab308','#22c55e'];
+
+let _pelada = null;
+let _jogadores = [];
+
+async function carregar() {
+  const [rPelada, rJogadores] = await Promise.all([
+    apiFetch(`/api/peladas/${id}`),
+    apiFetch('/api/jogadores-lista'),
+  ]);
+
+  if (!rPelada?.ok) {
+    document.getElementById('conteudo').innerHTML =
+      '<div class="empty-state"><div class="icon">❌</div><div class="title">Pelada não encontrada</div></div>';
+    return;
+  }
+
+  _pelada = await rPelada.json();
+  if (rJogadores?.ok) _jogadores = await rJogadores.json();
+
+  renderizar();
+}
+
+function renderizar() {
+  const p = _pelada;
+  const dt = new Date(p.data);
+  const dataFmt = dt.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  const horaFmt = dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+
+  const goleiros     = p.inscricoes.filter(i =>  i.ehGoleiro && !i.emEspera);
+  const confirmados  = p.inscricoes.filter(i => !i.ehGoleiro && !i.emEspera);
+  const espera       = p.inscricoes.filter(i =>  i.emEspera);
+  const distribuidos = confirmados.some(i => i.timeDistribuido);
+
+  const pct = Math.round(confirmados.length / p.limiteJogadores * 100);
+  const admin = isAdmin();
+
+  document.title = `Pelada ${dataFmt} — Sistema Esporte`;
+
+  let html = `
+    <a href="/peladas.html" class="btn btn-link btn-sm" style="margin-bottom:.75rem;display:inline-flex">← Peladas</a>
+
+    <!-- Hero -->
+    <div style="
+      background: radial-gradient(800px 280px at 10% -20%, rgba(22,163,74,0.2), transparent 60%),
+                  radial-gradient(500px 280px at 95% 110%, rgba(52,211,153,0.12), transparent 60%),
+                  linear-gradient(180deg,rgba(255,255,255,0.055) 0%,rgba(255,255,255,0.02) 100%);
+      border:1px solid var(--border);border-radius:var(--radius-lg);
+      padding:2rem;margin-bottom:1.5rem">
+
+      <div class="flex justify-between items-start" style="flex-wrap:wrap;gap:1rem">
+        <div>
+          <div class="texto-muted-2" style="font-size:.8rem;text-transform:capitalize;margin-bottom:.2rem">⚽ Pelada</div>
+          <h1 style="font-family:'Sora',sans-serif;font-size:1.9rem;font-weight:800;margin:0 0 .35rem;line-height:1.15;text-transform:capitalize">${dataFmt}</h1>
+          <div class="flex items-center gap-1" style="flex-wrap:wrap;margin-bottom:.75rem">
+            <span style="font-size:.9rem;color:var(--text-2)">🕐 ${horaFmt}</span>
+            ${p.local ? `<span class="texto-muted-2">·</span><span style="font-size:.9rem;color:var(--text-2)">📍 ${p.local}</span>` : ''}
+            <span class="score-pill" style="font-size:.75rem;background:${STATUS_COR[p.status]}22;color:${STATUS_COR[p.status]}">${STATUS_LABEL[p.status]}</span>
+          </div>
+          ${p.descricao ? `<div style="font-size:.85rem;color:var(--text-3);margin-bottom:.75rem">${p.descricao}</div>` : ''}
+
+          <!-- Barra de progresso -->
+          <div style="max-width:300px">
+            <div class="flex justify-between" style="font-size:.8rem;color:var(--text-3);margin-bottom:.3rem">
+              <span>Jogadores confirmados</span>
+              <span style="font-weight:600;color:var(--text-1)">${confirmados.length}/${p.limiteJogadores}</span>
+            </div>
+            <div style="background:var(--surface-strong);border-radius:99px;height:8px">
+              <div style="background:var(--gradient-primary);border-radius:99px;height:8px;width:${Math.min(pct,100)}%;transition:width .3s"></div>
+            </div>
+          </div>
+        </div>
+
+        ${admin ? `
+        <div class="flex gap-1" style="flex-wrap:wrap;align-self:flex-start">
+          ${p.status === 0 ? `<button onclick="alterarStatus(1)" class="btn btn-secundario btn-sm">🔒 Fechar lista</button>` : ''}
+          ${p.status === 1 ? `<button onclick="alterarStatus(0)" class="btn btn-secundario btn-sm">🔓 Reabrir</button>` : ''}
+          ${p.status !== 2 && confirmados.length >= 2 ? `<button onclick="distribuirTimes()" class="btn btn-primario btn-sm">⚖️ Distribuir times</button>` : ''}
+          ${p.status !== 2 ? `<button onclick="alterarStatus(2)" class="btn btn-secundario btn-sm">✅ Marcar realizada</button>` : ''}
+        </div>` : ''}
+      </div>
+    </div>
+
+    <div id="alertaPelada" class="alerta oculto"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.5rem" class="grid-col-1-mobile">`;
+
+  // ── Goleiros ─────────────────────────────────────────────────────────────
+  html += `
+      <div class="card-app">
+        <div class="card-body">
+          <div class="flex justify-between items-center mb-1">
+            <h2 style="font-family:'Sora',sans-serif;font-size:1rem;margin:0">🧤 Goleiros <span class="texto-muted-2" style="font-size:.8rem;font-weight:400">${goleiros.length}/${p.limiteGoleiros}</span></h2>
+          </div>
+          ${goleiros.length === 0
+            ? '<div class="texto-muted-2" style="font-size:.85rem">Nenhum goleiro inscrito.</div>'
+            : goleiros.map((i,idx) => inscricaoRow(i, idx+1, admin)).join('')}
+        </div>
+      </div>`;
+
+  // ── Jogadores de linha ────────────────────────────────────────────────────
+  if (distribuidos) {
+    const timeA = confirmados.filter(i => i.timeDistribuido === 1);
+    const timeB = confirmados.filter(i => i.timeDistribuido === 2);
+    html += `
+      <div>
+        <div class="card-app mb-1">
+          <div class="card-body">
+            <h2 style="font-family:'Sora',sans-serif;font-size:1rem;margin:0 0 .6rem">🟢 Time A</h2>
+            ${timeA.map((i,idx) => inscricaoRow(i, idx+1, admin)).join('')}
+          </div>
+        </div>
+        <div class="card-app">
+          <div class="card-body">
+            <h2 style="font-family:'Sora',sans-serif;font-size:1rem;margin:0 0 .6rem">🔵 Time B</h2>
+            ${timeB.map((i,idx) => inscricaoRow(i, idx+1, admin)).join('')}
+          </div>
+        </div>
+      </div>`;
+  } else {
+    html += `
+      <div class="card-app">
+        <div class="card-body">
+          <div class="flex justify-between items-center mb-1">
+            <h2 style="font-family:'Sora',sans-serif;font-size:1rem;margin:0">👟 Jogadores <span class="texto-muted-2" style="font-size:.8rem;font-weight:400">${confirmados.length}/${p.limiteJogadores}</span></h2>
+          </div>
+          ${confirmados.length === 0
+            ? '<div class="texto-muted-2" style="font-size:.85rem">Nenhum jogador confirmado.</div>'
+            : confirmados.map((i,idx) => inscricaoRow(i, idx+1, admin)).join('')}
+        </div>
+      </div>`;
+  }
+
+  html += `</div>`;
+
+  // ── Fila de espera ────────────────────────────────────────────────────────
+  if (espera.length > 0) {
+    html += `
+    <div class="card-app mb-2">
+      <div class="card-body">
+        <h2 style="font-family:'Sora',sans-serif;font-size:1rem;margin:0 0 .6rem">⏳ Fila de espera</h2>
+        ${espera.map((i,idx) => inscricaoRow(i, idx+1, admin)).join('')}
+      </div>
+    </div>`;
+  }
+
+  // ── Formulário de inscrição ───────────────────────────────────────────────
+  if (p.status !== 2) {
+    html += `
+    <div class="card-app">
+      <div class="card-body">
+        <h2 style="font-family:'Sora',sans-serif;font-size:1rem;margin:0 0 1rem">📋 ${p.status === 1 ? 'Lista fechada — entrar na fila de espera' : 'Inscrever-se'}</h2>
+
+        <div id="erroInscricao" class="alerta alerta-erro oculto"></div>
+        <div id="sucessoInscricao" class="alerta alerta-ok oculto"></div>
+
+        <div class="form-group">
+          <label class="form-label">Tipo</label>
+          <div class="toggle-group" id="toggleTipo" style="max-width:220px">
+            <button class="toggle-btn active" onclick="setTipo(0)">👟 Jogador</button>
+            <button class="toggle-btn"        onclick="setTipo(1)">🧤 Goleiro</button>
+          </div>
+        </div>
+
+        <div id="secaoNivel" class="form-group">
+          <label class="form-label">Nível</label>
+          <div class="toggle-group" id="toggleNivel" style="max-width:280px">
+            <button class="toggle-btn" onclick="setNivel(0)" style="color:#3b82f6">🔵 Azul</button>
+            <button class="toggle-btn active" onclick="setNivel(1)" style="color:#eab308">🟡 Amarelo</button>
+            <button class="toggle-btn" onclick="setNivel(2)" style="color:#22c55e">🟢 Verde</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Como você quer se inscrever?</label>
+          <div class="toggle-group" id="toggleModo" style="max-width:280px">
+            <button class="toggle-btn active" onclick="setModo(0)">Da lista de jogadores</button>
+            <button class="toggle-btn"        onclick="setModo(1)">Digitar nome</button>
+          </div>
+        </div>
+
+        <div id="secaoLista" class="form-group">
+          <label class="form-label">Selecionar jogador</label>
+          <select id="selectJogador" class="select">
+            <option value="">— Selecione —</option>
+            ${_jogadores.map(j => `<option value="${j.id}">${j.nome} (${j.timeNome})</option>`).join('')}
+          </select>
+        </div>
+
+        <div id="secaoNome" class="form-group oculto">
+          <label class="form-label">Seu nome</label>
+          <input type="text" id="inputNomeInsc" class="input" placeholder="Nome completo">
+        </div>
+
+        <button onclick="inscrever()" class="btn btn-primario">Confirmar inscrição</button>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('conteudo').innerHTML = html;
+}
+
+function inscricaoRow(i, pos, admin) {
+  const nivelBadge = !i.ehGoleiro
+    ? `<span style="font-size:.7rem;padding:.1rem .4rem;border-radius:99px;background:${NIVEL_COR[i.nivel]}22;color:${NIVEL_COR[i.nivel]};font-weight:600">${NIVEL_LABEL[i.nivel]}</span>`
+    : '';
+  const compareceu = i.compareceu
+    ? '<span style="font-size:.75rem;color:var(--success)">✅</span>'
+    : '';
+  return `
+  <div class="flex items-center gap-1 partida-row" style="margin-bottom:.3rem">
+    <span style="font-size:.75rem;color:var(--text-3);width:1.4rem;flex-shrink:0">${pos}.</span>
+    <div style="flex:1;font-size:.9rem;font-weight:600">${i.nome}</div>
+    ${nivelBadge}
+    ${compareceu}
+    ${admin ? `<button onclick="removerInscricao(${i.id})" class="btn btn-perigo btn-sm" style="padding:.15rem .4rem;font-size:.75rem">✕</button>` : ''}
+  </div>`;
+}
+
+// ── Tipo (Jogador/Goleiro) ────────────────────────────────────────────────
+let _tipo  = 0; // 0=jogador, 1=goleiro
+let _nivel = 1; // 0=azul, 1=amarelo, 2=verde
+let _modo  = 0; // 0=lista, 1=nome
+
+function setTipo(v) {
+  _tipo = v;
+  document.querySelectorAll('#toggleTipo .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+  const secNivel = document.getElementById('secaoNivel');
+  if (secNivel) secNivel.style.display = v === 1 ? 'none' : '';
+}
+function setNivel(v) {
+  _nivel = v;
+  document.querySelectorAll('#toggleNivel .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+}
+function setModo(v) {
+  _modo = v;
+  document.querySelectorAll('#toggleModo .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+  document.getElementById('secaoLista').classList.toggle('oculto', v === 1);
+  document.getElementById('secaoNome').classList.toggle('oculto',  v === 0);
+}
+
+async function inscrever() {
+  let body;
+  if (_modo === 0) {
+    const jogId = parseInt(document.getElementById('selectJogador').value);
+    if (!jogId) { mostrarErroInsc('Selecione um jogador da lista.'); return; }
+    body = { jogadorId: jogId, nivel: _nivel, ehGoleiro: _tipo === 1 };
+  } else {
+    const nome = document.getElementById('inputNomeInsc').value.trim();
+    if (!nome) { mostrarErroInsc('Informe o nome.'); return; }
+    body = { nome, nivel: _nivel, ehGoleiro: _tipo === 1 };
+  }
+
+  const resp = await fetch(`/api/peladas/${id}/inscricoes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await resp.json();
+
+  if (resp.ok) {
+    document.getElementById('erroInscricao').classList.add('oculto');
+    const suc = document.getElementById('sucessoInscricao');
+    suc.textContent = d.emEspera ? 'Você entrou na fila de espera!' : 'Inscrição confirmada!';
+    suc.classList.remove('oculto');
+    await recarregarPelada();
+  } else {
+    mostrarErroInsc(d.erro || 'Erro ao se inscrever.');
+  }
+}
+
+function mostrarErroInsc(msg) {
+  const el = document.getElementById('erroInscricao');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('oculto');
+}
+
+async function removerInscricao(inscId) {
+  if (!await sConfirm('Remover esta inscrição?', 'Confirmar', 'warning')) return;
+  const resp = await apiFetch(`/api/peladas/${id}/inscricoes/${inscId}`, { method: 'DELETE' });
+  if (resp?.ok) await recarregarPelada();
+  else mostrarAlertaPelada('Erro ao remover inscrição.', 'erro');
+}
+
+async function distribuirTimes() {
+  const resp = await apiFetch(`/api/peladas/${id}/distribuir`, { method: 'PUT' });
+  if (resp?.ok) await recarregarPelada();
+  else mostrarAlertaPelada('Erro ao distribuir times.', 'erro');
+}
+
+async function alterarStatus(status) {
+  const resp = await apiFetch(`/api/peladas/${id}/status`, {
+    method: 'PUT', body: JSON.stringify({ status }),
+  });
+  if (resp?.ok) await recarregarPelada();
+  else mostrarAlertaPelada('Erro ao alterar status.', 'erro');
+}
+
+async function recarregarPelada() {
+  const resp = await apiFetch(`/api/peladas/${id}`);
+  if (resp?.ok) { _pelada = await resp.json(); renderizar(); }
+}
+
+function mostrarAlertaPelada(msg, tipo) {
+  const el = document.getElementById('alertaPelada');
+  if (!el) return;
+  el.className = `alerta alerta-${tipo}`;
+  el.textContent = msg;
+  el.classList.remove('oculto');
+  setTimeout(() => el.classList.add('oculto'), 3500);
+}
+
+carregar();
+</script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Peladas — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="app-navbar" id="navbar"></nav>
+
+<main class="container page">
+  <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
+    <h1 class="page-title"><span class="icon-badge">⚽</span> Peladas</h1>
+    <div id="adminAcoes" class="flex gap-1 oculto">
+      <a href="/jogadores-pelada.html" class="btn btn-secundario">👤 Jogadores</a>
+      <button onclick="abrirModal()" class="btn btn-primario">+ Nova pelada</button>
+    </div>
+  </div>
+
+  <div id="listaPeladas">
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+  </div>
+</main>
+
+<!-- Modal nova pelada -->
+<div class="modal-overlay oculto" id="modalPelada">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-titulo" id="tituloModal">Nova Pelada</div>
+    <div id="erroModal" class="alerta alerta-erro oculto"></div>
+
+    <div class="form-group">
+      <label class="form-label">Data e hora</label>
+      <input type="datetime-local" id="inputData" class="input">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Local</label>
+      <input type="text" id="inputLocal" class="input" placeholder="Ex: Campo do Zé, Quadra A">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Descrição (opcional)</label>
+      <input type="text" id="inputDesc" class="input" placeholder="Observações, avisos...">
+    </div>
+    <div class="flex gap-1">
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Limite jogadores</label>
+        <input type="number" id="inputLimite" class="input" value="16" min="2" max="100">
+      </div>
+      <div class="form-group" style="flex:1">
+        <label class="form-label">Limite goleiros</label>
+        <input type="number" id="inputLimGol" class="input" value="2" min="0" max="10">
+      </div>
+    </div>
+
+    <div class="modal-acoes">
+      <button onclick="fecharModal()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="salvarPelada()" class="btn btn-primario" id="btnSalvarPelada">Criar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+renderNavbar(document.getElementById('navbar'));
+
+const STATUS_LABEL = ['Aberta','Fechada','Realizada'];
+const STATUS_COR   = ['var(--success)','var(--warning)','var(--text-3)'];
+let editandoId = null;
+
+if (isAdmin()) document.getElementById('adminAcoes').classList.remove('oculto');
+
+async function carregar() {
+  const resp = await apiFetch('/api/peladas');
+  if (!resp?.ok) return;
+  const lista = await resp.json();
+  const el = document.getElementById('listaPeladas');
+
+  if (!lista.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon">⚽</div>
+      <div class="title">Nenhuma pelada agendada</div>
+      ${isAdmin() ? '<div>Crie a primeira pelada para começar</div>' : ''}
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem">
+    ${lista.map(p => {
+      const dt = new Date(p.data);
+      const diaSemana = dt.toLocaleDateString('pt-BR', { weekday:'long' });
+      const dataFmt   = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const horaFmt   = dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+      const pct = Math.round(p.totalJogadores / p.limiteJogadores * 100);
+      return `
+      <div class="card-app hover-lift" style="cursor:pointer" onclick="location.href='/pelada.html?id=${p.id}'">
+        <div class="card-body">
+          <div class="flex justify-between items-start mb-1">
+            <div>
+              <div style="font-size:.78rem;text-transform:capitalize;color:var(--text-3)">${diaSemana}</div>
+              <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:800;line-height:1">${dataFmt}</div>
+              <div style="font-size:.85rem;color:var(--text-2)">${horaFmt}${p.local ? ' · ' + p.local : ''}</div>
+            </div>
+            <span style="font-size:.75rem;font-weight:600;color:${STATUS_COR[p.status]};white-space:nowrap">${STATUS_LABEL[p.status]}</span>
+          </div>
+
+          <div style="margin:.75rem 0 .5rem">
+            <div class="flex justify-between" style="font-size:.78rem;color:var(--text-3);margin-bottom:.25rem">
+              <span>Jogadores</span>
+              <span>${p.totalJogadores}/${p.limiteJogadores}</span>
+            </div>
+            <div style="background:var(--surface-strong);border-radius:99px;height:6px">
+              <div style="background:var(--gradient-primary);border-radius:99px;height:6px;width:${Math.min(pct,100)}%;transition:width .3s"></div>
+            </div>
+          </div>
+
+          <div class="flex gap-1" style="font-size:.8rem;color:var(--text-3)">
+            ${p.totalGoleiros ? `<span>🧤 ${p.totalGoleiros} goleiro${p.totalGoleiros>1?'s':''}</span>` : ''}
+            ${p.totalEspera   ? `<span>⏳ ${p.totalEspera} na fila</span>` : ''}
+          </div>
+
+          ${isAdmin() ? `
+          <div class="flex gap-1 mt-1" onclick="event.stopPropagation()">
+            <button onclick="editarPelada(${p.id})" class="btn btn-secundario btn-sm">✏️</button>
+            <button onclick="excluirPelada(${p.id})" class="btn btn-perigo btn-sm">🗑️</button>
+          </div>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function abrirModal(p) {
+  editandoId = p?.id ?? null;
+  document.getElementById('tituloModal').textContent = editandoId ? 'Editar Pelada' : 'Nova Pelada';
+  document.getElementById('btnSalvarPelada').textContent = editandoId ? 'Salvar' : 'Criar';
+  document.getElementById('erroModal').classList.add('oculto');
+  if (p) {
+    const dt = new Date(p.data);
+    const iso = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+    document.getElementById('inputData').value  = iso;
+    document.getElementById('inputLocal').value = p.local;
+    document.getElementById('inputDesc').value  = p.descricao;
+    document.getElementById('inputLimite').value = p.limiteJogadores;
+    document.getElementById('inputLimGol').value = p.limiteGoleiros;
+  } else {
+    document.getElementById('inputData').value  = '';
+    document.getElementById('inputLocal').value = '';
+    document.getElementById('inputDesc').value  = '';
+    document.getElementById('inputLimite').value = 16;
+    document.getElementById('inputLimGol').value = 2;
+  }
+  document.getElementById('modalPelada').classList.remove('oculto');
+}
+
+function fecharModal() { document.getElementById('modalPelada').classList.add('oculto'); }
+
+async function editarPelada(id) {
+  const resp = await apiFetch(`/api/peladas/${id}`);
+  if (!resp?.ok) return;
+  const p = await resp.json();
+  abrirModal(p);
+}
+
+async function salvarPelada() {
+  const data = document.getElementById('inputData').value;
+  if (!data) { mostrarErro('Informe a data.'); return; }
+  const body = {
+    data: new Date(data).toISOString(),
+    local: document.getElementById('inputLocal').value.trim(),
+    descricao: document.getElementById('inputDesc').value.trim(),
+    limiteJogadores: parseInt(document.getElementById('inputLimite').value),
+    limiteGoleiros:  parseInt(document.getElementById('inputLimGol').value),
+  };
+  const url    = editandoId ? `/api/peladas/${editandoId}` : '/api/peladas';
+  const method = editandoId ? 'PUT' : 'POST';
+  const resp = await apiFetch(url, { method, body: JSON.stringify(body) });
+  if (resp?.ok) { fecharModal(); carregar(); }
+  else { const d = await resp?.json(); mostrarErro(d?.erro || 'Erro ao salvar.'); }
+}
+
+async function excluirPelada(id) {
+  if (!await sConfirm('Esta pelada e todas as inscrições serão removidas.', 'Excluir pelada?', 'warning')) return;
+  const resp = await apiFetch(`/api/peladas/${id}`, { method: 'DELETE' });
+  if (resp?.ok) carregar();
+}
+
+function mostrarErro(msg) {
+  const el = document.getElementById('erroModal');
+  el.textContent = msg;
+  el.classList.remove('oculto');
+}
+
+carregar();
+</script>
+</body>
+</html>
