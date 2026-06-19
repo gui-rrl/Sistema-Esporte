@@ -20,5 +20,8 @@ namespace SistemaEsporte.Modelos
 
         public int? TimeId { get; set; }
         public Time? Time { get; set; }
+
+        /// <summary>CPF do associado (somente dígitos). Usado para verificação no SAP Business One.</summary>
+        public string? Cpf { get; set; }
     }
 }

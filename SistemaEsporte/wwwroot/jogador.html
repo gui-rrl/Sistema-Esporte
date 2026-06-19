@@ -43,8 +43,8 @@ if (!id) location.href = '/index.html';
 const POSICOES     = ['Goleiro','Zagueiro','Lateral Direito','Lateral Esquerdo','Meio Campo','Atacante','Reserva','Técnico'];
 const POSICAO_ICON = ['🧤','🛡️','➡️','⬅️','⚙️','⚽','🔄','📋'];
 const FORMATO_LABEL = { PontosCorridos:'Pontos Corridos', Copa:'Copa', MataMataSimples:'Mata-Mata Simples', MataMataIdaVolta:'Mata-Mata Ida e Volta' };
-const NIVEL_LABEL  = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
-const NIVEL_COR    = ['#3b82f6','#eab308','#22c55e'];
+const NIVEL_LABEL  = ['Muito Ruim','Ruim','Médio','Bom','Muito Bom'];
+const NIVEL_COR    = ['#dc2626','#f97316','#eab308','#22c55e','#2563eb'];
 
 async function carregar() {
   const resp = await apiFetch(`/api/jogadores/${id}`);

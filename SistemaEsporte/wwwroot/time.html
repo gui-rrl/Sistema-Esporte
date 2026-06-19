@@ -29,6 +29,7 @@ async function carregarJogadores() {
   if (!resp?.ok) return;
   let lista;
   try { lista = await resp.json(); } catch { return; }
+  _jogadoresTime = lista;
   const el = document.getElementById('listaJogadores');
   if (!lista.length) {
     el.innerHTML = '<div class="texto-muted-2">Nenhum jogador cadastrado.</div>';
@@ -47,8 +48,8 @@ async function carregarJogadores() {
         ${POSICAO_ICON[pid]} ${POSICOES[pid]}
       </div>
       ${jogadores.map(j => {
-        const NIVEL_COR   = ['#3b82f6','#eab308','#22c55e'];
-        const NIVEL_LABEL = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
+        const NIVEL_COR   = ['#dc2626','#f97316','#eab308','#22c55e','#2563eb'];
+        const NIVEL_LABEL = ['Muito Ruim','Ruim','Médio','Bom','Muito Bom'];
         const nv = j.nivel ?? 1;
         return `
         <div class="flex items-center gap-1 partida-row hover-lift" style="cursor:pointer;margin-bottom:.35rem"
@@ -67,28 +68,39 @@ async function carregarJogadores() {
 }
 
 let editandoJogadorId = null;
+let _jogadoresTime = [];
 
 function abrirModalJogador(jogId, nome, posId, nivelId) {
   editandoJogadorId = jogId ?? null;
   document.getElementById('jogNome').value = nome ?? '';
   document.getElementById('jogPosicao').value = posId ?? 0;
-  document.querySelectorAll('#toggleNivelJog .toggle-btn').forEach((b,i) => b.classList.toggle('active', i === (nivelId ?? 1)));
+  setNivelJog(nivelId ?? 2);
   document.getElementById('tituloModalJogador').textContent = jogId ? 'Editar Jogador' : 'Novo Jogador';
   document.getElementById('modalJogador').classList.remove('oculto');
 }
 
 function editarJogador(id, nome, posId, nivelId) { abrirModalJogador(id, nome, posId, nivelId); }
 function fecharModalJogador() { document.getElementById('modalJogador').classList.add('oculto'); }
+const NIVEL_COR_JOG = ['#dc2626','#f97316','#eab308','#22c55e','#2563eb'];
 function setNivelJog(v) {
-  document.querySelectorAll('#toggleNivelJog .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+  document.querySelectorAll('#toggleNivelJog .toggle-btn').forEach((b, i) => {
+    const on = i === v;
+    b.classList.toggle('active', on);
+    b.style.background   = on ? NIVEL_COR_JOG[i] : NIVEL_COR_JOG[i] + '22';
+    b.style.color        = on ? '#fff' : NIVEL_COR_JOG[i];
+    b.style.borderColor  = NIVEL_COR_JOG[i] + '66';
+  });
 }
 
 async function salvarJogador() {
   const nome = document.getElementById('jogNome').value.trim();
   if (!nome) return;
+  const nomeLower = nome.toLowerCase();
+  const duplicado = _jogadoresTime.find(j => j.nome.toLowerCase() === nomeLower && j.id !== editandoJogadorId);
+  if (duplicado) { mostrarAlerta(`Já existe um jogador com o nome "${nome}" neste time.`, 'erro'); return; }
   const posicaoId = parseInt(document.getElementById('jogPosicao').value);
   const nivelId   = [...document.querySelectorAll('#toggleNivelJog .toggle-btn')].findIndex(b => b.classList.contains('active'));
-  const body = JSON.stringify({ nome, posicaoId, nivelId: nivelId >= 0 ? nivelId : 1 });
+  const body = JSON.stringify({ nome, posicaoId, nivelId: nivelId >= 0 ? nivelId : 2 });
   let resp;
   if (editandoJogadorId) {
     resp = await apiFetch(`/api/jogadores/${editandoJogadorId}`, { method:'PUT', body });
@@ -286,9 +298,11 @@ carregar();
     <div class="form-group">
       <label class="form-label">Nível</label>
       <div class="toggle-group" id="toggleNivelJog">
-        <button class="toggle-btn"        onclick="setNivelJog(0)" style="color:#3b82f6">🔵 Azul</button>
-        <button class="toggle-btn active" onclick="setNivelJog(1)" style="color:#eab308">🟡 Amarelo</button>
-        <button class="toggle-btn"        onclick="setNivelJog(2)" style="color:#22c55e">🟢 Verde</button>
+        <button class="toggle-btn" onclick="setNivelJog(0)">Muito Ruim</button>
+        <button class="toggle-btn" onclick="setNivelJog(1)">Ruim</button>
+        <button class="toggle-btn" onclick="setNivelJog(2)">Médio</button>
+        <button class="toggle-btn" onclick="setNivelJog(3)">Bom</button>
+        <button class="toggle-btn" onclick="setNivelJog(4)">Muito Bom</button>
       </div>
     </div>
     <div class="modal-acoes">

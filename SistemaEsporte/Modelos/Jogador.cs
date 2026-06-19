@@ -1,6 +1,6 @@
 namespace SistemaEsporte.Modelos
 {
-    public enum NivelJogador { Azul = 0, Amarelo = 1, Verde = 2 }
+    public enum NivelJogador { MuitoRuim = 0, Ruim = 1, Medio = 2, Bom = 3, MuitoBom = 4 }
 
     public enum Posicao
     {
@@ -27,7 +27,7 @@ namespace SistemaEsporte.Modelos
         public int          Vitorias     { get; set; }
         public int          Empates      { get; set; }
         public int          Derrotas     { get; set; }
-        public NivelJogador Nivel        { get; set; } = NivelJogador.Amarelo;
+        public NivelJogador Nivel        { get; set; } = NivelJogador.Medio;
 
         public List<InscricaoPelada> Inscricoes { get; set; } = new();
         public List<PunicaoJogador>  Punicoes   { get; set; } = new();

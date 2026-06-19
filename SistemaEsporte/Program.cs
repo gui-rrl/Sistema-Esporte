@@ -35,7 +35,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<IServicoEmail, ServicoEmail>();
-builder.Services.AddControllers();
+builder.Services.AddScoped<ISapIntegracaoService, SapIntegracaoStub>();
+builder.Services.AddControllers().AddJsonOptions(opt =>
+    opt.JsonSerializerOptions.Converters.Add(new DateTimeUtcJsonConverter()));
 
 var app = builder.Build();
 
@@ -150,6 +152,41 @@ using (var escopo = app.Services.CreateScope())
             );
             CREATE INDEX IX_PunicoesJogador_JogadorId ON PunicoesJogador(JogadorId);
         END");
+
+    // Tabela SolicitacoesPelada
+    db.Database.ExecuteSqlRaw(@"
+        IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'SolicitacoesPelada')
+        BEGIN
+            CREATE TABLE SolicitacoesPelada (
+                Id             INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                UsuarioId      INT NOT NULL,
+                DataSolicitada DATE NOT NULL,
+                Status         INT NOT NULL DEFAULT 0,
+                DataCriacao    DATETIME2 NOT NULL,
+                PeladaId       INT NULL,
+                NivelAlocado   INT NULL,
+                CONSTRAINT FK_SolicitacoesPelada_Usuarios FOREIGN KEY (UsuarioId) REFERENCES Usuarios(Id) ON DELETE CASCADE,
+                CONSTRAINT FK_SolicitacoesPelada_Peladas  FOREIGN KEY (PeladaId)  REFERENCES Peladas(Id)  ON DELETE SET NULL,
+                CONSTRAINT UQ_Solic_UsuarioData UNIQUE (UsuarioId, DataSolicitada)
+            );
+        END");
+
+    // Coluna UsuarioId em JogadoresPelada
+    db.Database.ExecuteSqlRaw(@"
+        IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'JogadoresPelada')
+        AND NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('JogadoresPelada') AND name = 'UsuarioId')
+            ALTER TABLE JogadoresPelada ADD UsuarioId INT NULL");
+
+    // Coluna Cpf em Usuarios
+    db.Database.ExecuteSqlRaw(@"
+        IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Usuarios') AND name = 'Cpf')
+            ALTER TABLE Usuarios ADD Cpf NVARCHAR(11) NULL");
+
+    // Coluna Cpf em JogadoresPelada
+    db.Database.ExecuteSqlRaw(@"
+        IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('JogadoresPelada') AND name = 'Cpf')
+        AND EXISTS (SELECT 1 FROM sys.tables WHERE name = 'JogadoresPelada')
+            ALTER TABLE JogadoresPelada ADD Cpf NVARCHAR(11) NULL");
 
     var nomeAdmin  = config["Admin:NomeUsuario"] ?? "admin";
     var senhaAdmin = config["Admin:Senha"]       ?? "admin123";

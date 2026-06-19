@@ -30,7 +30,7 @@
   --gradient-bg:
     radial-gradient(1200px 600px at 80% -10%, rgba(22,163,74,0.14), transparent 60%),
     radial-gradient(900px 600px at -10% 110%, rgba(52,211,153,0.10), transparent 60%),
-    linear-gradient(180deg,#071a09 0%,#050f06 100%);
+    linear-gradient(180deg,#0e2812 0%,#071a09 100%);
 
   --radius-sm: 8px;
   --radius:    14px;
@@ -326,6 +326,27 @@ h1,h2,h3,h4,h5,h6 {
 .input::placeholder { color: var(--text-3); }
 .select option { background: var(--bg-1); color: var(--text-1); }
 
+/* ── Seletor de data/hora ── */
+.input[type="datetime-local"],
+.input[type="date"],
+.input[type="time"] {
+  color-scheme: dark;
+  cursor: pointer;
+}
+.input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.input[type="date"]::-webkit-calendar-picker-indicator,
+.input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(.65) sepia(.2) saturate(1.5) hue-rotate(90deg);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px;
+}
+.input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+.input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  filter: invert(.9) sepia(.3) saturate(2) hue-rotate(100deg);
+}
+
 .form-group  { margin-bottom: 1rem; }
 .form-label  { display:block; margin-bottom:.4rem; font-size:.84rem; color: var(--text-2); font-weight:500; }
 .form-erro   { color: var(--danger); font-size:.82rem; margin-top:.3rem; }
@@ -410,6 +431,7 @@ table.table-app {
   font-weight: 700;
   font-size: .88rem;
   font-family: 'Sora',sans-serif;
+  white-space: nowrap;
 }
 
 /* Status pill */
@@ -691,4 +713,119 @@ a:hover { color:var(--primary-2); text-decoration:none; }
 ::-webkit-scrollbar { width:8px; height:8px; }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:10px; }
+
+/* ===== Responsivo Mobile ===== */
+.nav-icon-only { display: none; }
+
+@media (max-width: 640px) {
+  body { padding-top: 60px; }
+
+  .app-navbar { height: 56px; padding: 0 .75rem; gap: .4rem; }
+
+  /* Marca: esconde texto, mantém ícone */
+  .brand-text { display: none; }
+
+  /* Nav links: esconde rótulos, mantém ícones */
+  .nav-label { display: none; }
+  .nav-link { padding: .45rem .6rem; font-size: 1rem; }
+
+  /* User chip: esconde nome e role */
+  .user-name, .role-tag { display: none; }
+  .user-chip { padding: .2rem .3rem; }
+
+  /* Botão Sair: mostra ✕ em vez do texto */
+  .nav-icon-only { display: inline; }
+
+  /* Tabela de partidas: esconde colunas secundárias */
+  .tabela-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-app .col-ocultar-mobile { display: none; }
+}
 ::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.16); }
+
+/* ===== Modo Claro ===== */
+[data-tema="claro"] {
+  --bg-0: #f7fdf8;
+  --bg-1: #edf7ef;
+  --bg-2: #ffffff;
+  --bg-3: #dff0e1;
+  --surface:        rgba(0,0,0,0.04);
+  --surface-strong: rgba(0,0,0,0.07);
+  --border:         rgba(0,0,0,0.10);
+  --border-strong:  rgba(0,0,0,0.18);
+
+  --text-1: #0d1f10;
+  --text-2: #1e4d25;
+  --text-3: #4a7750;
+
+  --primary:      #16a34a;
+  --primary-2:    #15803d;
+  --primary-glow: rgba(22,163,74,0.22);
+  --accent:       #059669;
+  --accent-2:     #15803d;
+  --warning:      #d97706;
+  --danger:       #dc2626;
+  --success:      #16a34a;
+
+  --gradient-primary: linear-gradient(135deg,#16a34a 0%,#22c55e 50%,#34d399 100%);
+  --gradient-bg:
+    radial-gradient(1200px 600px at 80% -10%, rgba(22,163,74,0.07), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(52,211,153,0.05), transparent 60%),
+    linear-gradient(180deg,#f7fdf8 0%,#edf7ef 100%);
+
+  --shadow-sm: 0 2px 6px rgba(0,0,0,.08);
+  --shadow:    0 4px 20px rgba(0,0,0,.10);
+  --shadow-lg: 0 10px 40px rgba(0,0,0,.15);
+  --shadow-glow: 0 0 0 1px rgba(22,163,74,.28), 0 4px 16px rgba(22,163,74,.18);
+}
+
+[data-tema="claro"] .app-navbar { background: rgba(247,253,248,0.90); }
+
+[data-tema="claro"] .card-app {
+  background: linear-gradient(180deg,#ffffff 0%,rgba(237,247,239,0.85) 100%);
+}
+
+[data-tema="claro"] .stat-card {
+  background: linear-gradient(180deg,#ffffff 0%,rgba(237,247,239,0.8) 100%);
+}
+
+[data-tema="claro"] .input,
+[data-tema="claro"] .select,
+[data-tema="claro"] textarea.input {
+  background: rgba(255,255,255,0.90);
+}
+
+[data-tema="claro"] .input:focus,
+[data-tema="claro"] .select:focus { background: #fff; }
+
+[data-tema="claro"] .table-app thead th     { background: rgba(0,0,0,0.025); }
+[data-tema="claro"] .table-app tbody tr:hover { background: rgba(0,0,0,0.03); }
+
+[data-tema="claro"] .partida-chave { background: rgba(0,0,0,0.015); }
+
+[data-tema="claro"] .time-pill { background: rgba(0,0,0,0.05); }
+[data-tema="claro"] .time-pill:hover { background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.22); }
+
+[data-tema="claro"] .torneio-card {
+  background: linear-gradient(180deg,#ffffff 0%,rgba(237,247,239,0.85) 100%);
+}
+
+[data-tema="claro"] .partida-row       { background: rgba(0,0,0,0.02); }
+[data-tema="claro"] .partida-row:hover { background: rgba(0,0,0,0.04); }
+
+[data-tema="claro"] .alerta-erro  { color: #b91c1c; }
+[data-tema="claro"] .alerta-ok    { color: #166534; }
+[data-tema="claro"] .alerta-aviso { color: #92400e; }
+
+[data-tema="claro"] .status-pill.prep { color: #b45309; }
+[data-tema="claro"] .status-pill.live { color: #065f46; }
+
+[data-tema="claro"] ::-webkit-scrollbar-thumb       { background: rgba(0,0,0,0.15); }
+[data-tema="claro"] ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+
+[data-tema="claro"] .input[type="datetime-local"],
+[data-tema="claro"] .input[type="date"],
+[data-tema="claro"] .input[type="time"] { color-scheme: light; }
+
+[data-tema="claro"] .input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+[data-tema="claro"] .input[type="date"]::-webkit-calendar-picker-indicator,
+[data-tema="claro"] .input[type="time"]::-webkit-calendar-picker-indicator { filter: none; }

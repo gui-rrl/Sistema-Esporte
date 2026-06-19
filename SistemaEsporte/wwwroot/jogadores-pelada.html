@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jogadores das Peladas — Sistema Esporte</title>
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    th.sortable { cursor:pointer; user-select:none; white-space:nowrap; }
+    th.sortable:hover { color:var(--primary); }
+    th.sortable.ativo { color:var(--primary); }
+    .sort-icon { font-size:.7rem; opacity:.5; margin-left:.2rem; }
+    th.sortable.ativo .sort-icon { opacity:1; }
+  </style>
 </head>
 <body>
 <nav class="app-navbar" id="navbar"></nav>
@@ -24,12 +31,12 @@
       <table class="table-app" id="tabela">
         <thead>
           <tr>
-            <th>Jogador</th>
-            <th>Nível</th>
+            <th class="sortable" onclick="sortBy('nome')">Jogador <span class="sort-icon" id="si-nome"></span></th>
+            <th class="sortable" onclick="sortBy('nivel')">Nível <span class="sort-icon" id="si-nivel"></span></th>
             <th>Telefone</th>
-            <th class="col-num">Peladas</th>
-            <th>Última pelada</th>
-            ${isAdminSync() ? '<th></th>' : ''}
+            <th class="col-num sortable" onclick="sortBy('totalPeladas')">Peladas <span class="sort-icon" id="si-totalPeladas"></span></th>
+            <th class="sortable" onclick="sortBy('ultimaPelada')">Última pelada <span class="sort-icon" id="si-ultimaPelada"></span></th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="corpo">
@@ -56,9 +63,11 @@
     <div class="form-group">
       <label class="form-label">Nível</label>
       <div class="toggle-group" id="toggleNivelEdit">
-        <button class="toggle-btn" onclick="setNivelEdit(0)" style="color:#3b82f6">🔵 Azul</button>
-        <button class="toggle-btn active" onclick="setNivelEdit(1)" style="color:#eab308">🟡 Amarelo</button>
-        <button class="toggle-btn" onclick="setNivelEdit(2)" style="color:#22c55e">🟢 Verde</button>
+        <button class="toggle-btn" onclick="setNivelEdit(0)">Muito Ruim</button>
+        <button class="toggle-btn" onclick="setNivelEdit(1)">Ruim</button>
+        <button class="toggle-btn" onclick="setNivelEdit(2)">Médio</button>
+        <button class="toggle-btn" onclick="setNivelEdit(3)">Bom</button>
+        <button class="toggle-btn" onclick="setNivelEdit(4)">Muito Bom</button>
       </div>
     </div>
     <div class="modal-acoes">
@@ -72,14 +81,13 @@
 <script>
 renderNavbar(document.getElementById('navbar'));
 
-const NIVEL_LABEL = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
-const NIVEL_COR   = ['#3b82f6','#eab308','#22c55e'];
+const NIVEL_LABEL = ['Muito Ruim','Ruim','Médio','Bom','Muito Bom'];
+const NIVEL_COR   = ['#dc2626','#f97316','#eab308','#22c55e','#2563eb'];
 
 let _todos = [];
 let editandoId = null;
-
-// helper síncrono para renderizar o <th> antes do JS rodar
-function isAdminSync() { try { return JSON.parse(atob(localStorage.getItem('token')?.split('.')[1] ?? 'e30='))?.role === 'Admin'; } catch { return false; } }
+let _sortCol = 'nome';
+let _sortDir = 1; // 1 = asc, -1 = desc
 
 async function carregar() {
   const resp = await apiFetch('/api/jogadores-pelada');
@@ -88,9 +96,26 @@ async function carregar() {
   renderizar();
 }
 
+function sortBy(col) {
+  if (_sortCol === col) _sortDir *= -1;
+  else { _sortCol = col; _sortDir = 1; }
+  renderizar();
+}
+
+function atualizarIndicadores() {
+  ['nome','nivel','totalPeladas','ultimaPelada'].forEach(col => {
+    const th = document.getElementById('si-' + col)?.closest('th');
+    const icon = document.getElementById('si-' + col);
+    if (!icon) return;
+    const ativo = col === _sortCol;
+    th?.classList.toggle('ativo', ativo);
+    icon.textContent = ativo ? (_sortDir === 1 ? '↑' : '↓') : '↕';
+  });
+}
+
 function renderizar() {
   const busca = document.getElementById('busca').value.toLowerCase();
-  const lista = busca ? _todos.filter(j => j.nome.toLowerCase().includes(busca)) : _todos;
+  let lista = busca ? _todos.filter(j => j.nome.toLowerCase().includes(busca)) : [..._todos];
   const admin = isAdmin();
   const corpo = document.getElementById('corpo');
 
@@ -101,8 +126,22 @@ function renderizar() {
       <div>Os jogadores aparecem aqui ao se inscreverem nas peladas</div>
     </div></td></tr>`;
     document.getElementById('rodape').textContent = '';
+    atualizarIndicadores();
     return;
   }
+
+  lista.sort((a, b) => {
+    if (_sortCol === 'nome')
+      return a.nome.localeCompare(b.nome, 'pt-BR') * _sortDir;
+    if (_sortCol === 'ultimaPelada') {
+      const av = a.ultimaPelada ? new Date(a.ultimaPelada).getTime() : 0;
+      const bv = b.ultimaPelada ? new Date(b.ultimaPelada).getTime() : 0;
+      return (av - bv) * _sortDir;
+    }
+    return ((a[_sortCol] ?? 0) - (b[_sortCol] ?? 0)) * _sortDir;
+  });
+
+  atualizarIndicadores();
 
   corpo.innerHTML = lista.map(j => {
     const ultima = j.ultimaPelada
@@ -138,13 +177,19 @@ function abrirEditar(id) {
   editandoId = id;
   document.getElementById('editNome').value     = j.nome;
   document.getElementById('editTelefone').value = j.telefone || '';
-  document.querySelectorAll('#toggleNivelEdit .toggle-btn').forEach((b,i) => b.classList.toggle('active', i === j.nivel));
+  setNivelEdit(j.nivel);
   document.getElementById('modalEditar').classList.remove('oculto');
 }
 
 function fecharModal() { document.getElementById('modalEditar').classList.add('oculto'); }
 function setNivelEdit(v) {
-  document.querySelectorAll('#toggleNivelEdit .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+  document.querySelectorAll('#toggleNivelEdit .toggle-btn').forEach((b, i) => {
+    const on = i === v;
+    b.classList.toggle('active', on);
+    b.style.background  = on ? NIVEL_COR[i] : NIVEL_COR[i] + '22';
+    b.style.color       = on ? '#fff' : NIVEL_COR[i];
+    b.style.borderColor = NIVEL_COR[i] + '66';
+  });
 }
 
 async function salvar() {
@@ -153,7 +198,7 @@ async function salvar() {
   const nivel    = [...document.querySelectorAll('#toggleNivelEdit .toggle-btn')].findIndex(b => b.classList.contains('active'));
   if (!nome) return;
   const resp = await apiFetch(`/api/jogadores-pelada/${editandoId}`, {
-    method: 'PUT', body: JSON.stringify({ nome, telefone, nivel: nivel >= 0 ? nivel : 1 }),
+    method: 'PUT', body: JSON.stringify({ nome, telefone, nivel: nivel >= 0 ? nivel : 2 }),
   });
   if (resp?.ok) { fecharModal(); carregar(); }
 }

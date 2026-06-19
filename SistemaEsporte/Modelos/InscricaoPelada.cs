@@ -10,7 +10,7 @@ namespace SistemaEsporte.Modelos
         public int?          JogadorPeladaId { get; set; }
         public JogadorPelada? JogadorPelada  { get; set; }
         // NivelAvulso mantido para leituras legadas sem JogadorPeladaId
-        public NivelJogador  NivelAvulso     { get; set; } = NivelJogador.Amarelo;
+        public NivelJogador  NivelAvulso     { get; set; } = NivelJogador.Medio;
         public bool      EhGoleiro      { get; set; }
         public bool      EmEspera       { get; set; }
         public DateTime  DataInscricao  { get; set; } = DateTime.UtcNow;

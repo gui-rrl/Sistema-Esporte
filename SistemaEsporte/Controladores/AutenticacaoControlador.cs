@@ -19,12 +19,14 @@ namespace SistemaEsporte.Controladores
     {
         private readonly ContextoBanco _db;
         private readonly IConfiguration _config;
+        private readonly ISapIntegracaoService _sap;
         private readonly PasswordHasher<Usuario> _hasher = new();
 
-        public AutenticacaoControlador(ContextoBanco db, IConfiguration config)
+        public AutenticacaoControlador(ContextoBanco db, IConfiguration config, ISapIntegracaoService sap)
         {
             _db     = db;
             _config = config;
+            _sap    = sap;
         }
 
         // POST api/autenticacao/login
@@ -54,53 +56,43 @@ namespace SistemaEsporte.Controladores
         // POST api/autenticacao/registrar
         [HttpPost("registrar")]
         [AllowAnonymous]
-        public async Task<IActionResult> Registrar([FromBody] RegistrarDto dto, [FromServices] IServicoEmail email)
+        public async Task<IActionResult> Registrar([FromBody] RegistrarDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.NomeUsuario)) return BadRequest(new { erro = "Informe um nome de usuário." });
-            if (string.IsNullOrWhiteSpace(dto.Email) || !dto.Email.Contains('@')) return BadRequest(new { erro = "Informe um e-mail válido." });
             if (string.IsNullOrWhiteSpace(dto.Senha) || dto.Senha.Length < 4) return BadRequest(new { erro = "A senha deve ter ao menos 4 caracteres." });
             if (dto.Senha != dto.ConfirmarSenha) return BadRequest(new { erro = "As senhas não coincidem." });
 
             if (await _db.Usuarios.AnyAsync(u => u.NomeUsuario.ToLower() == dto.NomeUsuario.Trim().ToLower()))
                 return Conflict(new { erro = "Nome de usuário já está em uso." });
-            if (await _db.Usuarios.AnyAsync(u => u.Email != null && u.Email.ToLower() == dto.Email.Trim().ToLower()))
+            if (!string.IsNullOrWhiteSpace(dto.Email) && await _db.Usuarios.AnyAsync(u => u.Email != null && u.Email.ToLower() == dto.Email.Trim().ToLower()))
                 return Conflict(new { erro = "E-mail já cadastrado." });
 
-            Time? time = null;
-            if (!string.IsNullOrWhiteSpace(dto.NomeTime))
+            string? cpfNormalizado = null;
+            if (!string.IsNullOrWhiteSpace(dto.Cpf))
             {
-                time = new Time { Nome = dto.NomeTime.Trim() };
-                _db.Times.Add(time);
-                await _db.SaveChangesAsync();
+                cpfNormalizado = new string(dto.Cpf.Where(char.IsDigit).ToArray());
+                if (cpfNormalizado.Length != 11)
+                    return BadRequest(new { erro = "CPF inválido. Informe os 11 dígitos." });
+                if (await _db.Usuarios.AnyAsync(u => u.Cpf == cpfNormalizado))
+                    return Conflict(new { erro = "CPF já cadastrado." });
+                var verificacao = await _sap.VerificarBloqueio(cpfNormalizado);
+                if (verificacao.Bloqueado)
+                    return BadRequest(new { erro = $"Associado bloqueado no SAP. Motivo: {verificacao.Motivo ?? "não informado"}." });
             }
 
-            var token = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
             var usuario = new Usuario
             {
-                NomeUsuario              = dto.NomeUsuario.Trim(),
-                Email                    = dto.Email.Trim().ToLower(),
-                Papel                    = "Usuario",
-                EmailConfirmado          = false,
-                TokenConfirmacaoEmail    = token,
-                ExpiracaoTokenConfirmacao = DateTime.UtcNow.AddHours(24),
-                TimeId                   = time?.Id,
+                NomeUsuario     = dto.NomeUsuario.Trim(),
+                Email           = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim().ToLower(),
+                Papel           = "Usuario",
+                EmailConfirmado = true,
+                Cpf             = cpfNormalizado,
             };
             usuario.HashSenha = _hasher.HashPassword(usuario, dto.Senha);
             _db.Usuarios.Add(usuario);
             await _db.SaveChangesAsync();
 
-            var baseUrl    = _config["ConfigApp:UrlBase"]?.TrimEnd('/') ?? "http://localhost:5297";
-            var urlConfirm = $"{baseUrl}/confirmar-email.html?token={token}";
-            try { await email.EnviarEmailAsync(usuario.Email, "Confirme seu cadastro — Sistema Esporte", ModelosEmail.ConfirmacaoCadastro(usuario.NomeUsuario, urlConfirm)); }
-            catch (Exception ex)
-            {
-                _db.Usuarios.Remove(usuario);
-                if (time != null) _db.Times.Remove(time);
-                await _db.SaveChangesAsync();
-                return StatusCode(500, new { erro = $"Não foi possível enviar o e-mail de confirmação: {ex.Message}" });
-            }
-
-            return Ok(new { mensagem = "Cadastro realizado! Verifique seu e-mail para ativar a conta." });
+            return Ok(new { mensagem = "Conta criada com sucesso! Faça login para continuar." });
         }
 
         // GET api/autenticacao/confirmar-email?token=xxx
@@ -257,7 +249,7 @@ namespace SistemaEsporte.Controladores
     }
 
     public record LoginDto(string NomeUsuario, string Senha);
-    public record RegistrarDto(string NomeUsuario, string Email, string Senha, string ConfirmarSenha, string? NomeTime);
+    public record RegistrarDto(string NomeUsuario, string Email, string Senha, string ConfirmarSenha, string? NomeTime, string? Cpf);
     public record CriarUsuarioDto(string NomeUsuario, string Senha, string Papel, int? TimeId);
     public record EsqueciSenhaDto(string Email);
     public record RedefinirSenhaDto(string Token, string NovaSenha, string ConfirmarSenha);

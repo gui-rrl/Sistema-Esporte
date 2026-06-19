@@ -23,8 +23,8 @@ if (!id) location.href = '/peladas.html';
 
 const STATUS_LABEL = ['Aberta','Fechada','Realizada'];
 const STATUS_COR   = ['var(--success)','var(--warning)','var(--text-3)'];
-const NIVEL_LABEL  = ['🔵 Azul','🟡 Amarelo','🟢 Verde'];
-const NIVEL_COR    = ['#3b82f6','#eab308','#22c55e'];
+const NIVEL_LABEL  = ['Muito Ruim','Ruim','Médio','Bom','Muito Bom'];
+const NIVEL_COR    = ['#dc2626','#f97316','#eab308','#22c55e','#2563eb'];
 
 let _pelada = null;
 let _jogadores = [];
@@ -190,10 +190,12 @@ function renderizar() {
 
         <div id="secaoNivel" class="form-group">
           <label class="form-label">Nível</label>
-          <div class="toggle-group" id="toggleNivel" style="max-width:280px">
-            <button class="toggle-btn" onclick="setNivel(0)" style="color:#3b82f6">🔵 Azul</button>
-            <button class="toggle-btn active" onclick="setNivel(1)" style="color:#eab308">🟡 Amarelo</button>
-            <button class="toggle-btn" onclick="setNivel(2)" style="color:#22c55e">🟢 Verde</button>
+          <div class="toggle-group" id="toggleNivel">
+            <button class="toggle-btn" onclick="setNivel(0)">Muito Ruim</button>
+            <button class="toggle-btn" onclick="setNivel(1)">Ruim</button>
+            <button class="toggle-btn" onclick="setNivel(2)">Médio</button>
+            <button class="toggle-btn" onclick="setNivel(3)">Bom</button>
+            <button class="toggle-btn" onclick="setNivel(4)">Muito Bom</button>
           </div>
         </div>
 
@@ -224,6 +226,8 @@ function renderizar() {
   }
 
   document.getElementById('conteudo').innerHTML = html;
+  // Aplica cor do nível padrão após renderizar os botões no DOM
+  if (p.status !== 2) setNivel(_nivel);
 }
 
 function inscricaoRow(i, pos, admin) {
@@ -233,19 +237,34 @@ function inscricaoRow(i, pos, admin) {
   const compareceu = i.compareceu
     ? '<span style="font-size:.75rem;color:var(--success)">✅</span>'
     : '';
+  const btnTipo = admin
+    ? `<button onclick="alterarTipoInscricao(${i.id},${!i.ehGoleiro})" class="btn btn-secundario btn-sm" title="${i.ehGoleiro ? 'Tornar Jogador' : 'Tornar Goleiro'}" style="padding:.15rem .4rem;font-size:.75rem">${i.ehGoleiro ? '👟' : '🧤'}</button>`
+    : '';
   return `
   <div class="flex items-center gap-1 partida-row" style="margin-bottom:.3rem">
     <span style="font-size:.75rem;color:var(--text-3);width:1.4rem;flex-shrink:0">${pos}.</span>
     <div style="flex:1;font-size:.9rem;font-weight:600">${i.nome}</div>
     ${nivelBadge}
     ${compareceu}
+    ${btnTipo}
     ${admin ? `<button onclick="removerInscricao(${i.id})" class="btn btn-perigo btn-sm" style="padding:.15rem .4rem;font-size:.75rem">✕</button>` : ''}
   </div>`;
 }
 
+async function alterarTipoInscricao(inscId, novoEhGoleiro) {
+  const msg = novoEhGoleiro ? 'Tornar este jogador goleiro?' : 'Tornar este goleiro jogador de campo?';
+  if (!await sConfirm(msg, 'Alterar tipo', 'warning')) return;
+  const resp = await apiFetch(`/api/peladas/${id}/inscricoes/${inscId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ ehGoleiro: novoEhGoleiro }),
+  });
+  if (resp?.ok) await recarregarPelada();
+  else mostrarAlertaPelada('Erro ao alterar tipo do jogador.', 'erro');
+}
+
 // ── Tipo (Jogador/Goleiro) ────────────────────────────────────────────────
 let _tipo  = 0; // 0=jogador, 1=goleiro
-let _nivel = 1; // 0=azul, 1=amarelo, 2=verde
+let _nivel = 2;
 let _modo  = 0; // 0=lista, 1=nome
 
 function setTipo(v) {
@@ -256,7 +275,13 @@ function setTipo(v) {
 }
 function setNivel(v) {
   _nivel = v;
-  document.querySelectorAll('#toggleNivel .toggle-btn').forEach((b,i) => b.classList.toggle('active', i===v));
+  document.querySelectorAll('#toggleNivel .toggle-btn').forEach((b, i) => {
+    const on = i === v;
+    b.classList.toggle('active', on);
+    b.style.background  = on ? NIVEL_COR[i] : NIVEL_COR[i] + '22';
+    b.style.color       = on ? '#fff' : NIVEL_COR[i];
+    b.style.borderColor = NIVEL_COR[i] + '66';
+  });
 }
 function setModo(v) {
   _modo = v;
@@ -266,6 +291,7 @@ function setModo(v) {
 }
 
 async function inscrever() {
+  if (_tipo !== 1 && _nivel < 0) { mostrarErroInsc('Selecione o nível do jogador.'); return; }
   let body;
   if (_modo === 0) {
     const jogId = parseInt(document.getElementById('selectJogador').value);
@@ -274,6 +300,9 @@ async function inscrever() {
   } else {
     const nome = document.getElementById('inputNomeInsc').value.trim();
     if (!nome) { mostrarErroInsc('Informe o nome.'); return; }
+    const nomeLower = nome.toLowerCase();
+    const jaInscrito = _pelada?.inscricoes?.some(i => i.nome.toLowerCase() === nomeLower);
+    if (jaInscrito) { mostrarErroInsc(`"${nome}" já está inscrito nesta pelada.`); return; }
     body = { nome, nivel: _nivel, ehGoleiro: _tipo === 1 };
   }
 

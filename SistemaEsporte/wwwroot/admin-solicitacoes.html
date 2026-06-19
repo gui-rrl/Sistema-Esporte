@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitações — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="app-navbar" id="navbar"></nav>
+
+<main class="container page">
+  <div class="flex justify-between items-center mb-2" style="flex-wrap:wrap;gap:.75rem">
+    <h1 class="page-title"><span class="icon-badge">📋</span> Solicitações de Pelada</h1>
+    <button onclick="carregar()" class="btn btn-secundario btn-sm">↻ Atualizar</button>
+  </div>
+
+  <div id="alerta" class="alerta oculto"></div>
+  <div id="conteudo">
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+  </div>
+</main>
+
+<!-- Modal alocar -->
+<div class="modal-overlay oculto" id="modalAlocar">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-titulo">Alocar Jogador</div>
+    <div id="infoUsuario" style="margin-bottom:1rem;padding:.65rem .85rem;border-radius:10px;background:var(--surface);font-size:.88rem;color:var(--text-2)"></div>
+
+    <div class="form-group">
+      <label class="form-label">Pelada</label>
+      <select id="selPelada" class="select"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nível do jogador</label>
+      <div class="toggle-group" id="toggleNivel">
+        <button class="toggle-btn" onclick="setNivel(0)">Muito Ruim</button>
+        <button class="toggle-btn" onclick="setNivel(1)">Ruim</button>
+        <button class="toggle-btn" onclick="setNivel(2)">Médio</button>
+        <button class="toggle-btn" onclick="setNivel(3)">Bom</button>
+        <button class="toggle-btn" onclick="setNivel(4)">Muito Bom</button>
+      </div>
+    </div>
+
+    <div class="modal-acoes">
+      <button onclick="fecharModal()" class="btn btn-secundario">Cancelar</button>
+      <button onclick="confirmarAlocacao()" class="btn btn-primario">Alocar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/auth.js"></script>
+<script>
+if (!isAdmin()) { location.href = '/index.html'; throw new Error(); }
+renderNavbar(document.getElementById('navbar'));
+
+const NIVEL_COR = ['#dc2626','#f97316','#eab308','#22c55e','#2563eb'];
+
+let _solicitacaoAtual = null;
+let _nivelSelecionado = 2;
+let _dadosDias = [];
+
+async function carregar() {
+  const resp = await apiFetch('/api/solicitacoes/pendentes');
+  if (!resp?.ok) return;
+  _dadosDias = await resp.json();
+  renderizar(_dadosDias);
+}
+
+function renderizar(dados) {
+  const el = document.getElementById('conteudo');
+
+  if (!dados.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon">✅</div>
+      <div class="title">Nenhuma solicitação pendente</div>
+      <div>As solicitações dos jogadores aparecerão aqui</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = dados.map((dia, diaIdx) => {
+    const dt      = new Date(dia.data + 'T00:00:00');
+    const diaSem  = dt.toLocaleDateString('pt-BR', { weekday: 'long' });
+    const dataFmt = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const linhas = dia.solicitacoes.map(s => `
+      <tr>
+        <td style="font-weight:600">${s.usuario.nomeUsuario}</td>
+        <td style="color:var(--text-3);font-size:.82rem">${s.usuario.cpf ? formatarCpf(s.usuario.cpf) : '—'}</td>
+        <td style="color:var(--text-3);font-size:.8rem">${new Date(s.dataCriacao).toLocaleDateString('pt-BR')}</td>
+        <td>
+          <div class="flex gap-1">
+            <button onclick="abrirAlocar(${s.id}, ${diaIdx})"
+              class="btn btn-primario btn-sm">Alocar</button>
+            <button onclick="rejeitar(${s.id})" class="btn btn-perigo btn-sm">Rejeitar</button>
+          </div>
+        </td>
+      </tr>`).join('');
+
+    const peladas = dia.peladasDoDia.length
+      ? dia.peladasDoDia.map(p =>
+          `<span style="font-size:.78rem;padding:.15rem .5rem;border-radius:99px;background:var(--surface-strong);color:var(--text-2)">⚽ ${p.hora}${p.local ? ' · ' + p.local : ''} · ${p.vagas} vagas</span>`
+        ).join(' ')
+      : '<span style="font-size:.8rem;color:var(--text-3)">Nenhuma pelada cadastrada para este dia</span>';
+
+    return `
+    <div class="card-app mb-2">
+      <div class="card-header" style="flex-wrap:wrap;gap:.5rem">
+        <div>
+          <span style="text-transform:capitalize;font-size:1rem">${diaSem}</span>
+          <span style="color:var(--text-3);font-size:.85rem;margin-left:.5rem">${dataFmt}</span>
+        </div>
+        <div class="flex gap-1" style="flex-wrap:wrap">${peladas}</div>
+      </div>
+      <div class="tabela-wrap">
+        <table class="table-app">
+          <thead><tr>
+            <th>Usuário</th>
+            <th>CPF</th>
+            <th>Solicitado em</th>
+            <th style="width:160px"></th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function formatarCpf(cpf) {
+  return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+function abrirAlocar(solId, diaIdx) {
+  _solicitacaoAtual = solId;
+  _nivelSelecionado = 2;
+
+  const dia = _dadosDias[diaIdx];
+  const sol = dia.solicitacoes.find(s => s.id === solId);
+  document.getElementById('infoUsuario').textContent = `Jogador: ${sol?.usuario?.nomeUsuario ?? ''}`;
+
+  const peladas = dia.peladasDoDia;
+  const sel = document.getElementById('selPelada');
+  sel.innerHTML = peladas.length
+    ? peladas.map(p => `<option value="${p.id}">${p.hora}${p.local ? ' — ' + p.local : ''} (${p.vagas} vagas)</option>`).join('')
+    : '<option value="" disabled>Nenhuma pelada disponível</option>';
+
+  setNivel(2);
+  document.getElementById('modalAlocar').classList.remove('oculto');
+}
+
+function fecharModal() {
+  document.getElementById('modalAlocar').classList.add('oculto');
+  _solicitacaoAtual = null;
+}
+
+function setNivel(v) {
+  _nivelSelecionado = v;
+  document.querySelectorAll('#toggleNivel .toggle-btn').forEach((b, i) => {
+    const on = i === v;
+    b.classList.toggle('active', on);
+    b.style.background  = on ? NIVEL_COR[i] : NIVEL_COR[i] + '22';
+    b.style.color       = on ? '#fff' : NIVEL_COR[i];
+    b.style.borderColor = NIVEL_COR[i] + '66';
+  });
+}
+
+async function confirmarAlocacao() {
+  if (_solicitacaoAtual == null) return;
+  const peladaId = parseInt(document.getElementById('selPelada').value);
+  if (!peladaId) { mostrarAlerta('Selecione uma pelada.', 'erro'); return; }
+
+  const resp = await apiFetch(`/api/solicitacoes/${_solicitacaoAtual}/alocar`, {
+    method: 'PUT',
+    body: JSON.stringify({ peladaId, nivel: _nivelSelecionado }),
+  });
+
+  if (resp?.ok) {
+    const d = await resp.json();
+    fecharModal();
+    mostrarAlerta(`Jogador alocado com sucesso!${d.emEspera ? ' (entrou na fila de espera)' : ''}`, 'ok');
+    await carregar();
+  } else {
+    const d = await resp?.json();
+    mostrarAlerta(d?.erro || 'Erro ao alocar.', 'erro');
+  }
+}
+
+async function rejeitar(id) {
+  if (!await sConfirm('A solicitação será cancelada e o jogador não será alocado.', 'Rejeitar solicitação?', 'warning')) return;
+  const resp = await apiFetch(`/api/solicitacoes/${id}/rejeitar`, { method: 'DELETE' });
+  if (resp?.ok) {
+    mostrarAlerta('Solicitação rejeitada.', 'ok');
+    await carregar();
+  } else {
+    mostrarAlerta('Erro ao rejeitar.', 'erro');
+  }
+}
+
+function mostrarAlerta(msg, tipo) {
+  const el = document.getElementById('alerta');
+  el.textContent = msg;
+  el.className = `alerta alerta-${tipo}`;
+  setTimeout(() => el.classList.add('oculto'), 5000);
+}
+
+carregar();
+</script>
+</body>
+</html>

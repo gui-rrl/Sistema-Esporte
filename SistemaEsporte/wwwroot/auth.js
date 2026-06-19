@@ -1,5 +1,11 @@
 const API = '';
 
+// Aplica o tema salvo antes de qualquer renderização
+(function() {
+  const t = localStorage.getItem('se_tema') || 'escuro';
+  document.documentElement.setAttribute('data-tema', t);
+})();
+
 // ===== SweetAlert2 — carrega dinamicamente se ainda não estiver presente =====
 (function() {
   if (document.getElementById('sa2-css')) return;
@@ -14,6 +20,14 @@ const API = '';
 
 function _sa2() { return window.Swal; }
 
+function _swalOpts() {
+  const claro = document.documentElement.getAttribute('data-tema') === 'claro';
+  return {
+    background: claro ? '#ffffff' : '#1a1a2e',
+    color:      claro ? '#0d1f10' : '#e2e8f0',
+  };
+}
+
 /** Substitui alert() */
 function sAlert(msg, titulo = '', tipo = 'info') {
   return new Promise(res => {
@@ -23,8 +37,7 @@ function sAlert(msg, titulo = '', tipo = 'info') {
       icon:  tipo,
       confirmButtonText: 'OK',
       confirmButtonColor: '#16a34a',
-      background: '#1a1a2e',
-      color: '#e2e8f0',
+      ..._swalOpts(),
     }).then(() => res());
     _sa2() ? run() : setTimeout(() => _sa2() ? run() : window.alert(msg), 600);
   });
@@ -42,8 +55,7 @@ function sConfirm(msg, titulo = 'Confirmar', tipo = 'warning') {
       cancelButtonText:  'Cancelar',
       confirmButtonColor: '#16a34a',
       cancelButtonColor:  '#374151',
-      background: '#1a1a2e',
-      color: '#e2e8f0',
+      ..._swalOpts(),
     }).then(r => res(r.isConfirmed));
     _sa2() ? run() : setTimeout(() => _sa2() ? run() : res(window.confirm(msg)), 600);
   });
@@ -74,6 +86,15 @@ function exigirLogin() {
   return true;
 }
 
+function toggleTema() {
+  const atual = document.documentElement.getAttribute('data-tema') || 'escuro';
+  const novo  = atual === 'escuro' ? 'claro' : 'escuro';
+  document.documentElement.setAttribute('data-tema', novo);
+  localStorage.setItem('se_tema', novo);
+  const btn = document.getElementById('btnTema');
+  if (btn) btn.textContent = novo === 'escuro' ? '☀️' : '🌙';
+}
+
 async function apiFetch(url, opcoes = {}) {
   const token = getToken();
   const headers = { 'Content-Type': 'application/json', ...(opcoes.headers ?? {}) };
@@ -88,31 +109,35 @@ function renderNavbar(container) {
   const usuario = getUsuario();
   const papel   = getPapel();
   const pag     = location.pathname;
+  const claro   = document.documentElement.getAttribute('data-tema') === 'claro';
 
   const navLink = (href, label, icon) => {
     const active = pag === href || pag.startsWith(href.replace('.html','')) ? 'active' : '';
-    return `<a href="${href}" class="nav-link ${active}">${icon} ${label}</a>`;
+    return `<a href="${href}" class="nav-link ${active}">${icon}<span class="nav-label"> ${label}</span></a>`;
   };
 
   container.innerHTML = `
     <a href="/index.html" class="navbar-brand">
       <span class="logo">⚽</span>
-      Sistema Esporte
+      <span class="brand-text">Sistema Esporte</span>
     </a>
     <nav class="nav-pills">
       ${navLink('/index.html',    'Times',    '👥')}
       ${navLink('/partidas.html', 'Partidas', '📋')}
       ${navLink('/torneios.html', 'Torneios', '🏆')}
       ${navLink('/peladas.html',  'Peladas',  '⚽')}
+      ${usuario ? navLink('/quero-jogar.html', 'Quero Jogar', '🙋') : ''}
+      ${papel === 'Admin' ? navLink('/admin-solicitacoes.html', 'Solicitações', '📥') : ''}
     </nav>
     <div class="navbar-end">
+      <button onclick="toggleTema()" id="btnTema" class="btn btn-secundario btn-sm" title="Alternar tema" style="font-size:1rem;padding:.35rem .55rem">${claro ? '🌙' : '☀️'}</button>
       ${usuario
         ? `<div class="user-chip">
              <span class="avatar-xs">${usuario[0].toUpperCase()}</span>
-             <span>${usuario}</span>
+             <span class="user-name">${usuario}</span>
              <span class="role-tag">${papel}</span>
            </div>
-           <button onclick="logout()" class="btn btn-secundario btn-sm">Sair</button>`
+           <button onclick="logout()" class="btn btn-secundario btn-sm"><span class="nav-label">Sair</span><span class="nav-icon-only">✕</span></button>`
         : `<a href="/login.html" class="btn btn-primario btn-sm">Entrar</a>`
       }
     </div>`;

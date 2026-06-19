@@ -18,6 +18,45 @@
     </div>
   </div>
 
+  <!-- Filtros -->
+  <div class="flex gap-1 mb-2" style="flex-wrap:wrap;align-items:flex-end">
+    <div style="flex:1;min-width:130px">
+      <label class="form-label" style="font-size:.78rem">Dia da semana</label>
+      <select id="filtroDia" class="input select" style="height:38px;padding:.4rem .7rem" onchange="renderizar()">
+        <option value="">Todos</option>
+        <option value="0">Domingo</option>
+        <option value="1">Segunda-feira</option>
+        <option value="2">Terça-feira</option>
+        <option value="3">Quarta-feira</option>
+        <option value="4">Quinta-feira</option>
+        <option value="5">Sexta-feira</option>
+        <option value="6">Sábado</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:130px">
+      <label class="form-label" style="font-size:.78rem">Data — de</label>
+      <input type="date" id="filtroDataDe" class="input" style="height:38px;padding:.4rem .7rem;cursor:pointer" oninput="renderizar()" onclick="try{this.showPicker()}catch(e){}">
+    </div>
+    <div style="flex:1;min-width:130px">
+      <label class="form-label" style="font-size:.78rem">Data — até</label>
+      <input type="date" id="filtroDataAte" class="input" style="height:38px;padding:.4rem .7rem;cursor:pointer" oninput="renderizar()" onclick="try{this.showPicker()}catch(e){}">
+    </div>
+    <div style="flex:1;min-width:130px">
+      <label class="form-label" style="font-size:.78rem">Horário</label>
+      <select id="filtroHora" class="input select" style="height:38px;padding:.4rem .7rem" onchange="renderizar()">
+        <option value="">Todos</option>
+        <option value="manha">Manhã (06–12h)</option>
+        <option value="tarde">Tarde (12–18h)</option>
+        <option value="noite">Noite (18–00h)</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:130px">
+      <label class="form-label" style="font-size:.78rem">Campo</label>
+      <input type="search" id="filtroCampo" class="input" placeholder="Ex: Campo do Zé" style="height:38px;padding:.4rem .7rem" oninput="renderizar()">
+    </div>
+    <button onclick="limparFiltros()" class="btn btn-secundario btn-sm" style="height:38px;white-space:nowrap">Limpar filtros</button>
+  </div>
+
   <div id="listaPeladas">
     <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
   </div>
@@ -66,41 +105,85 @@ renderNavbar(document.getElementById('navbar'));
 const STATUS_LABEL = ['Aberta','Fechada','Realizada'];
 const STATUS_COR   = ['var(--success)','var(--warning)','var(--text-3)'];
 let editandoId = null;
+let _lista = [];
 
 if (isAdmin()) document.getElementById('adminAcoes').classList.remove('oculto');
 
 async function carregar() {
   const resp = await apiFetch('/api/peladas');
   if (!resp?.ok) return;
-  const lista = await resp.json();
+  _lista = await resp.json();
+  renderizar();
+}
+
+function renderizar() {
+  const filtroDataDe  = document.getElementById('filtroDataDe').value;
+  const filtroDataAte = document.getElementById('filtroDataAte').value;
+  const filtroDia     = document.getElementById('filtroDia').value;
+  const filtroHora  = document.getElementById('filtroHora').value;
+  const filtroCampo = document.getElementById('filtroCampo').value.toLowerCase().trim();
   const el = document.getElementById('listaPeladas');
+
+  let lista = _lista;
+
+  if (filtroDataDe || filtroDataAte) {
+    lista = lista.filter(p => {
+      const d = p.data.split('T')[0];
+      if (filtroDataDe && filtroDataAte) return d >= filtroDataDe && d <= filtroDataAte;
+      if (filtroDataDe)  return d >= filtroDataDe;
+      return d <= filtroDataAte;
+    });
+  }
+
+  if (filtroDia !== '') {
+    lista = lista.filter(p => {
+      const [y, m, d] = p.data.split('T')[0].split('-').map(Number);
+      return new Date(y, m - 1, d).getDay() === parseInt(filtroDia);
+    });
+  }
+
+  if (filtroHora) {
+    lista = lista.filter(p => {
+      const h = new Date(p.data).getHours();
+      if (filtroHora === 'manha') return h >= 6  && h < 12;
+      if (filtroHora === 'tarde') return h >= 12 && h < 18;
+      if (filtroHora === 'noite') return h >= 18 || h < 6;
+      return true;
+    });
+  }
+
+  if (filtroCampo) {
+    lista = lista.filter(p => (p.local || '').toLowerCase().includes(filtroCampo));
+  }
 
   if (!lista.length) {
     el.innerHTML = `<div class="empty-state">
       <div class="icon">⚽</div>
-      <div class="title">Nenhuma pelada agendada</div>
-      ${isAdmin() ? '<div>Crie a primeira pelada para começar</div>' : ''}
+      <div class="title">${(_lista.length && (filtroDataDe || filtroDataAte || filtroDia || filtroHora || filtroCampo)) ? 'Nenhuma pelada encontrada com esses filtros' : 'Nenhuma pelada agendada'}</div>
+      ${isAdmin() && !_lista.length ? '<div>Crie a primeira pelada para começar</div>' : ''}
     </div>`;
     return;
   }
 
-  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem">
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem">
     ${lista.map(p => {
-      const dt = new Date(p.data);
+      const dt       = new Date(p.data);
       const diaSemana = dt.toLocaleDateString('pt-BR', { weekday:'long' });
-      const dataFmt   = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
-      const horaFmt   = dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+      const dataFmt  = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+      const horaFmt  = dt.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
       const pct = Math.round(p.totalJogadores / p.limiteJogadores * 100);
       return `
       <div class="card-app hover-lift" style="cursor:pointer" onclick="location.href='/pelada.html?id=${p.id}'">
         <div class="card-body">
+
           <div class="flex justify-between items-start mb-1">
             <div>
-              <div style="font-size:.78rem;text-transform:capitalize;color:var(--text-3)">${diaSemana}</div>
-              <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:800;line-height:1">${dataFmt}</div>
-              <div style="font-size:.85rem;color:var(--text-2)">${horaFmt}${p.local ? ' · ' + p.local : ''}</div>
+              <div style="font-family:'Sora',sans-serif;font-size:2.4rem;font-weight:800;line-height:1;letter-spacing:-.03em">${horaFmt}</div>
+              <div style="font-size:.8rem;text-transform:capitalize;color:var(--text-3);margin-top:.2rem">${diaSemana}</div>
+              <div style="font-size:.9rem;font-weight:600;color:var(--text-2)">${dataFmt}</div>
+              ${p.local ? `<div style="font-size:.78rem;color:var(--text-3);margin-top:.15rem">📍 ${p.local}</div>` : ''}
             </div>
-            <span style="font-size:.75rem;font-weight:600;color:${STATUS_COR[p.status]};white-space:nowrap">${STATUS_LABEL[p.status]}</span>
+            <span style="font-size:.73rem;font-weight:700;color:${STATUS_COR[p.status]};white-space:nowrap;margin-top:.25rem">${STATUS_LABEL[p.status]}</span>
           </div>
 
           <div style="margin:.75rem 0 .5rem">
@@ -129,23 +212,38 @@ async function carregar() {
   </div>`;
 }
 
+function limparFiltros() {
+  document.getElementById('filtroDataDe').value  = '';
+  document.getElementById('filtroDataAte').value = '';
+  document.getElementById('filtroDia').value     = '';
+  document.getElementById('filtroHora').value    = '';
+  document.getElementById('filtroCampo').value   = '';
+  renderizar();
+}
+
+function agoraLocalIso() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 function abrirModal(p) {
   editandoId = p?.id ?? null;
   document.getElementById('tituloModal').textContent = editandoId ? 'Editar Pelada' : 'Nova Pelada';
   document.getElementById('btnSalvarPelada').textContent = editandoId ? 'Salvar' : 'Criar';
   document.getElementById('erroModal').classList.add('oculto');
+  document.getElementById('inputData').min = agoraLocalIso();
   if (p) {
     const dt = new Date(p.data);
     const iso = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0,16);
-    document.getElementById('inputData').value  = iso;
-    document.getElementById('inputLocal').value = p.local;
-    document.getElementById('inputDesc').value  = p.descricao;
+    document.getElementById('inputData').value   = iso;
+    document.getElementById('inputLocal').value  = p.local;
+    document.getElementById('inputDesc').value   = p.descricao;
     document.getElementById('inputLimite').value = p.limiteJogadores;
     document.getElementById('inputLimGol').value = p.limiteGoleiros;
   } else {
-    document.getElementById('inputData').value  = '';
-    document.getElementById('inputLocal').value = '';
-    document.getElementById('inputDesc').value  = '';
+    document.getElementById('inputData').value   = '';
+    document.getElementById('inputLocal').value  = '';
+    document.getElementById('inputDesc').value   = '';
     document.getElementById('inputLimite').value = 16;
     document.getElementById('inputLimGol').value = 2;
   }
@@ -163,7 +261,10 @@ async function editarPelada(id) {
 
 async function salvarPelada() {
   const data = document.getElementById('inputData').value;
-  if (!data) { mostrarErro('Informe a data.'); return; }
+  if (!data) { mostrarErro('Informe a data e hora.'); return; }
+  const dt = new Date(data);
+  if (dt < new Date()) { mostrarErro('A data e hora não podem ser no passado.'); return; }
+  if (dt.getHours() < 7) { mostrarErro('Peladas não podem ser marcadas antes das 07:00.'); return; }
   const body = {
     data: new Date(data).toISOString(),
     local: document.getElementById('inputLocal').value.trim(),

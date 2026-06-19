@@ -17,7 +17,8 @@ namespace SistemaEsporte.Dados
         public DbSet<Pelada>          Peladas           { get; set; }
         public DbSet<InscricaoPelada> InscricoesPelada  { get; set; }
         public DbSet<PunicaoJogador>  PunicoesJogador   { get; set; }
-        public DbSet<JogadorPelada>   JogadoresPelada   { get; set; }
+        public DbSet<JogadorPelada>     JogadoresPelada    { get; set; }
+        public DbSet<SolicitacaoPelada> SolicitacoesPelada { get; set; }
 
         protected override void OnModelCreating(ModelBuilder mb)
         {
@@ -56,6 +57,15 @@ namespace SistemaEsporte.Dados
               .HasOne(i => i.Jogador).WithMany(j => j.Inscricoes).HasForeignKey(i => i.JogadorId).OnDelete(DeleteBehavior.SetNull);
             mb.Entity<InscricaoPelada>()
               .HasOne(i => i.JogadorPelada).WithMany(jp => jp.Inscricoes).HasForeignKey(i => i.JogadorPeladaId).OnDelete(DeleteBehavior.SetNull);
+
+            mb.Entity<SolicitacaoPelada>()
+              .HasOne(s => s.Usuario).WithMany().HasForeignKey(s => s.UsuarioId).OnDelete(DeleteBehavior.Cascade);
+            mb.Entity<SolicitacaoPelada>()
+              .HasOne(s => s.Pelada).WithMany().HasForeignKey(s => s.PeladaId).OnDelete(DeleteBehavior.SetNull);
+            mb.Entity<SolicitacaoPelada>()
+              .HasIndex(s => new { s.UsuarioId, s.DataSolicitada }).IsUnique();
+            mb.Entity<SolicitacaoPelada>()
+              .Property(s => s.DataSolicitada).HasColumnType("date");
 
             mb.Entity<PunicaoJogador>()
               .HasOne(p => p.Jogador).WithMany(j => j.Punicoes).HasForeignKey(p => p.JogadorId).OnDelete(DeleteBehavior.Cascade);

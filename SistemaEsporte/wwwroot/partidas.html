@@ -106,7 +106,7 @@ async function carregarPartidas() {
           <th>Time 1</th>
           <th class="col-num">Placar</th>
           <th>Time 2</th>
-          <th>Data</th>
+          <th class="col-ocultar-mobile">Data</th>
           ${isAdmin() ? '<th style="width:56px"></th>' : ''}
         </tr></thead>
         <tbody>${d.partidas.map(p => {
@@ -115,18 +115,18 @@ async function carregarPartidas() {
           return `<tr>
             <td>
               <div class="time-nome">
-                <img class="escudo" src="${p.escudoTime1 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+                <img class="escudo col-ocultar-mobile" src="${p.escudoTime1 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
                 <a href="/time.html?id=${p.time1Id}" style="${v1 ? 'color:var(--accent);font-weight:600' : ''}">${p.nomeTime1}</a>
               </div>
             </td>
             <td class="col-num"><span class="score-pill">${p.golsTime1} × ${p.golsTime2}</span></td>
             <td>
               <div class="time-nome">
-                <img class="escudo" src="${p.escudoTime2 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
+                <img class="escudo col-ocultar-mobile" src="${p.escudoTime2 || '/img/escudo-default.svg'}" onerror="this.src='/img/escudo-default.svg'">
                 <a href="/time.html?id=${p.time2Id}" style="${v2 ? 'color:var(--accent);font-weight:600' : ''}">${p.nomeTime2}</a>
               </div>
             </td>
-            <td class="texto-muted-2">${new Date(p.data).toLocaleDateString('pt-BR')}</td>
+            <td class="texto-muted-2 col-ocultar-mobile">${new Date(p.data).toLocaleDateString('pt-BR')}</td>
             ${isAdmin() ? `<td><button onclick="removerPartida(${p.id})" class="btn btn-perigo btn-sm">🗑️</button></td>` : ''}
           </tr>`;
         }).join('')}</tbody>

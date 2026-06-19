@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quero Jogar — Sistema Esporte</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<nav class="app-navbar" id="navbar"></nav>
+
+<main class="container page">
+  <div class="mb-2">
+    <h1 class="page-title"><span class="icon-badge">⚽</span> Quero Jogar</h1>
+    <p class="page-subtitle">Solicite participação nos dias disponíveis. O responsável irá definir seu nível e a pelada.</p>
+  </div>
+
+  <div id="alerta" class="alerta oculto"></div>
+  <div id="conteudo">
+    <div class="empty-state"><div class="icon">⏳</div><div class="title">Carregando...</div></div>
+  </div>
+</main>
+
+<script src="/auth.js"></script>
+<script>
+if (!exigirLogin()) throw new Error('não logado');
+renderNavbar(document.getElementById('navbar'));
+
+const NIVEL_LABEL = ['Muito Ruim','Ruim','Médio','Bom','Muito Bom'];
+const STATUS_LABEL = { Pendente: 'Aguardando', Alocado: 'Confirmado', Cancelado: 'Cancelado' };
+const STATUS_COR   = { Pendente: 'var(--warning)', Alocado: 'var(--success)', Cancelado: 'var(--text-3)' };
+
+let _dias = [];
+
+async function carregar() {
+  const resp = await apiFetch('/api/solicitacoes/dias');
+  if (!resp?.ok) return;
+  _dias = await resp.json();
+  renderizar();
+}
+
+function renderizar() {
+  const el = document.getElementById('conteudo');
+  if (!_dias.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="icon">📅</div>
+      <div class="title">Nenhuma pelada disponível</div>
+      <div>Novas peladas aparecerão aqui quando forem criadas</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = _dias.map(d => {
+    const dt       = new Date(d.data + 'T00:00:00');
+    const diaSem   = dt.toLocaleDateString('pt-BR', { weekday: 'long' });
+    const dataFmt  = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const tagStatus = d.jaSolicitou
+      ? `<span style="font-size:.75rem;font-weight:700;color:${STATUS_COR[d.statusSolicitacao]}">${STATUS_LABEL[d.statusSolicitacao] ?? d.statusSolicitacao}</span>`
+      : '';
+
+    const alocacaoInfo = d.statusSolicitacao === 'Alocado' && d.peladaAlocada
+      ? (() => {
+          const p = d.peladas.find(x => x.id === d.peladaAlocada);
+          const nível = d.nivelAlocado != null ? NIVEL_LABEL[d.nivelAlocado] : '—';
+          return `<div style="margin-top:.6rem;padding:.6rem .75rem;border-radius:10px;background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.25);font-size:.83rem">
+            ✅ Alocado na pelada das <strong>${p ? p.hora : '?'}</strong> · Nível: <strong>${nível}</strong>
+          </div>`;
+        })()
+      : '';
+
+    const botao = (() => {
+      if (!d.jaSolicitou)
+        return `<button onclick="solicitar('${d.data}')" class="btn btn-primario btn-sm">Solicitar participação</button>`;
+      if (d.statusSolicitacao === 'Pendente')
+        return `<button onclick="cancelar(${d.solicitacaoId})" class="btn btn-secundario btn-sm">Cancelar solicitação</button>`;
+      return '';
+    })();
+
+    const peladas = d.peladas.map(p =>
+      `<div style="font-size:.8rem;color:var(--text-2);display:flex;justify-content:space-between;padding:.2rem 0">
+        <span>⚽ ${p.hora}${p.local ? ' · ' + p.local : ''}</span>
+        <span style="color:var(--text-3)">${p.vagas > 0 ? p.vagas + ' vagas' : 'Sem vagas'}</span>
+      </div>`
+    ).join('');
+
+    return `
+    <div class="card-app hover-lift mb-1" style="max-width:520px">
+      <div class="card-body">
+        <div class="flex justify-between items-start mb-1">
+          <div>
+            <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:800;line-height:1.1;text-transform:capitalize">${diaSem}</div>
+            <div style="font-size:.9rem;font-weight:600;color:var(--text-2)">${dataFmt}</div>
+          </div>
+          ${tagStatus}
+        </div>
+        <div style="margin:.5rem 0;border-top:1px solid var(--border);padding-top:.5rem">${peladas}</div>
+        ${alocacaoInfo}
+        <div class="flex gap-1 mt-1">${botao}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function solicitar(dataStr) {
+  const resp = await apiFetch('/api/solicitacoes', {
+    method: 'POST',
+    body: JSON.stringify({ data: dataStr + 'T00:00:00Z' }),
+  });
+  if (resp?.ok) {
+    mostrarAlerta('Solicitação enviada! Aguarde o responsável confirmar sua vaga.', 'ok');
+    await carregar();
+  } else {
+    const d = await resp?.json();
+    mostrarAlerta(d?.erro || 'Erro ao solicitar.', 'erro');
+  }
+}
+
+async function cancelar(id) {
+  if (!await sConfirm('Sua solicitação será cancelada.', 'Cancelar solicitação?', 'warning')) return;
+  const resp = await apiFetch(`/api/solicitacoes/${id}`, { method: 'DELETE' });
+  if (resp?.ok) {
+    mostrarAlerta('Solicitação cancelada.', 'ok');
+    await carregar();
+  } else {
+    const d = await resp?.json();
+    mostrarAlerta(d?.erro || 'Erro ao cancelar.', 'erro');
+  }
+}
+
+function mostrarAlerta(msg, tipo) {
+  const el = document.getElementById('alerta');
+  el.textContent = msg;
+  el.className = `alerta alerta-${tipo}`;
+  setTimeout(() => el.classList.add('oculto'), 5000);
+}
+
+carregar();
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SistemaEsporte.Dados;
 using SistemaEsporte.Modelos;
+using SistemaEsporte.Servicos;
 
 namespace SistemaEsporte.Controladores
 {
@@ -10,7 +11,8 @@ namespace SistemaEsporte.Controladores
     public class PeladaControlador : ControllerBase
     {
         private readonly ContextoBanco _db;
-        public PeladaControlador(ContextoBanco db) => _db = db;
+        private readonly ISapIntegracaoService _sap;
+        public PeladaControlador(ContextoBanco db, ISapIntegracaoService sap) { _db = db; _sap = sap; }
 
         // ── GET /api/peladas ──────────────────────────────────────────────────
         [HttpGet("api/peladas")]
@@ -110,6 +112,12 @@ namespace SistemaEsporte.Controladores
         [HttpPost("api/peladas")]
         public async Task<IActionResult> Criar([FromBody] PeladaDto dto)
         {
+            var erroHorario = ValidarHorario(dto.Data);
+            if (erroHorario != null) return BadRequest(new { erro = erroHorario });
+
+            var erroConflito = await ValidarConflito(dto.Data, null);
+            if (erroConflito != null) return BadRequest(new { erro = erroConflito });
+
             var p = new Pelada {
                 Data            = dto.Data,
                 Local           = dto.Local     ?? string.Empty,
@@ -129,6 +137,13 @@ namespace SistemaEsporte.Controladores
         {
             var p = await _db.Peladas.FindAsync(id);
             if (p == null) return NotFound();
+
+            var erroHorario = ValidarHorario(dto.Data);
+            if (erroHorario != null) return BadRequest(new { erro = erroHorario });
+
+            var erroConflito = await ValidarConflito(dto.Data, id);
+            if (erroConflito != null) return BadRequest(new { erro = erroConflito });
+
             p.Data      = dto.Data;
             p.Local     = dto.Local     ?? p.Local;
             p.Descricao = dto.Descricao ?? p.Descricao;
@@ -136,6 +151,31 @@ namespace SistemaEsporte.Controladores
             if (dto.LimiteGoleiros.HasValue)  p.LimiteGoleiros  = dto.LimiteGoleiros.Value;
             await _db.SaveChangesAsync();
             return Ok();
+        }
+
+        private static string? ValidarHorario(DateTime dataUtc)
+        {
+            // Brasil = UTC-3 (sem horário de verão desde 2019)
+            var local = dataUtc.AddHours(-3);
+            if (local.Hour < 7)
+                return $"Peladas não podem ser marcadas antes das 07:00 (horário solicitado: {local:HH:mm}).";
+            return null;
+        }
+
+        private async Task<string?> ValidarConflito(DateTime dataUtc, int? excluirId)
+        {
+            var conflito = await _db.Peladas
+                .Where(p => p.Data > dataUtc.AddMinutes(-40) &&
+                            p.Data < dataUtc.AddMinutes(40)  &&
+                            (excluirId == null || p.Id != excluirId))
+                .FirstOrDefaultAsync();
+
+            if (conflito != null)
+            {
+                var hora = conflito.Data.AddHours(-3).ToString("HH:mm");
+                return $"Conflito: já existe uma pelada às {hora}. O intervalo mínimo entre peladas é de 40 minutos.";
+            }
+            return null;
         }
 
         // ── DELETE /api/peladas/{id} ──────────────────────────────────────────
@@ -171,6 +211,23 @@ namespace SistemaEsporte.Controladores
             if (pelada.Status == StatusPelada.Realizada)
                 return BadRequest(new { erro = "Esta pelada já foi realizada." });
 
+            // Verificação SAP — só quando CPF informado e jogador não é do quadro de times
+            string? cpfNormalizado = null;
+            if (!string.IsNullOrWhiteSpace(dto.Cpf) && !dto.JogadorId.HasValue)
+            {
+                cpfNormalizado = new string(dto.Cpf.Where(char.IsDigit).ToArray());
+                if (cpfNormalizado.Length == 11)
+                {
+                    var verificacao = await _sap.VerificarBloqueio(cpfNormalizado);
+                    if (verificacao.Bloqueado)
+                        return BadRequest(new { erro = $"Associado bloqueado no SAP. Motivo: {verificacao.Motivo ?? "não informado"}." });
+                }
+                else
+                {
+                    cpfNormalizado = null;
+                }
+            }
+
             if (dto.JogadorId.HasValue)
             {
                 var hoje  = DateTime.UtcNow;
@@ -196,15 +253,16 @@ namespace SistemaEsporte.Controladores
                 if (existente != null)
                 {
                     jogadorPeladaId = existente.Id;
-                    // Atualiza nível se enviado
                     if (dto.Nivel.HasValue) existente.Nivel = (NivelJogador)dto.Nivel.Value;
+                    if (cpfNormalizado != null && existente.Cpf == null) existente.Cpf = cpfNormalizado;
                 }
                 else
                 {
                     var novo = new JogadorPelada {
                         Nome     = nomeNorm,
                         Telefone = dto.Telefone ?? string.Empty,
-                        Nivel    = (NivelJogador)(dto.Nivel ?? 1),
+                        Nivel    = (NivelJogador)(dto.Nivel ?? 2),
+                        Cpf      = cpfNormalizado,
                     };
                     _db.JogadoresPelada.Add(novo);
                     await _db.SaveChangesAsync();
@@ -229,7 +287,7 @@ namespace SistemaEsporte.Controladores
                 PeladaId        = id,
                 JogadorId       = dto.JogadorId,
                 JogadorPeladaId = jogadorPeladaId,
-                NivelAvulso     = (NivelJogador)(dto.Nivel ?? 1),
+                NivelAvulso     = (NivelJogador)(dto.Nivel ?? 2),
                 EhGoleiro       = dto.EhGoleiro,
                 EmEspera        = emEspera,
                 DataInscricao   = DateTime.UtcNow,
@@ -274,6 +332,48 @@ namespace SistemaEsporte.Controladores
             return Ok();
         }
 
+        // ── PUT /api/peladas/{id}/inscricoes/{inscId} ─────────────────────────
+        [Authorize(Roles = "Admin")]
+        [HttpPut("api/peladas/{id}/inscricoes/{inscId}")]
+        public async Task<IActionResult> AtualizarInscricao(int id, int inscId, [FromBody] AtualizarInscricaoDto dto)
+        {
+            var pelada = await _db.Peladas
+                .Include(p => p.Inscricoes)
+                .FirstOrDefaultAsync(p => p.Id == id);
+            if (pelada == null) return NotFound();
+
+            var insc = pelada.Inscricoes.FirstOrDefault(i => i.Id == inscId);
+            if (insc == null) return NotFound();
+
+            if (insc.EhGoleiro == dto.EhGoleiro) return Ok();
+
+            var confirmadosAtual = pelada.Inscricoes
+                .Count(i => i.Id != inscId && !i.EhGoleiro && !i.EmEspera);
+
+            bool eraConfirmado = !insc.EmEspera;
+            insc.EhGoleiro = dto.EhGoleiro;
+
+            if (dto.EhGoleiro)
+            {
+                // Jogador → Goleiro: remove da fila de jogadores
+                insc.EmEspera = false;
+                if (eraConfirmado && pelada.Status == StatusPelada.Fechada
+                    && confirmadosAtual < pelada.LimiteJogadores)
+                    pelada.Status = StatusPelada.Aberta;
+            }
+            else
+            {
+                // Goleiro → Jogador: entra no pool de jogadores
+                insc.EmEspera = confirmadosAtual >= pelada.LimiteJogadores;
+                if (!insc.EmEspera && confirmadosAtual + 1 >= pelada.LimiteJogadores
+                    && pelada.Status == StatusPelada.Aberta)
+                    pelada.Status = StatusPelada.Fechada;
+            }
+
+            await _db.SaveChangesAsync();
+            return Ok(new { insc.Id, insc.EhGoleiro, insc.EmEspera });
+        }
+
         // ── PUT /api/peladas/{id}/distribuir ──────────────────────────────────
         [Authorize(Roles = "Admin")]
         [HttpPut("api/peladas/{id}/distribuir")]
@@ -285,13 +385,20 @@ namespace SistemaEsporte.Controladores
                 .Where(i => i.PeladaId == id && !i.EhGoleiro && !i.EmEspera)
                 .ToListAsync();
 
-            // Snake draft por nível: Verde > Amarelo > Azul
+            // Snake draft por nível (decrescente).
+            // Rodadas pares: A escolhe primeiro. Rodadas ímpares: B escolhe primeiro.
+            // Ex: A B | B A | A B | B A ...
             var ordenados = inscricoes
                 .OrderByDescending(i => (int)(i.Jogador?.Nivel ?? i.JogadorPelada?.Nivel ?? i.NivelAvulso))
                 .ToList();
 
             for (int k = 0; k < ordenados.Count; k++)
-                ordenados[k].TimeDistribuido = (k % 2 == 0) ? 1 : 2;
+            {
+                int round = k / 2;
+                int posInRound = k % 2;
+                bool timeA = (round % 2 == 0) ? posInRound == 0 : posInRound == 1;
+                ordenados[k].TimeDistribuido = timeA ? 1 : 2;
+            }
 
             await _db.SaveChangesAsync();
             return Ok();
@@ -345,8 +452,9 @@ namespace SistemaEsporte.Controladores
     }
 
     public record PeladaDto(DateTime Data, string? Local, string? Descricao, int? LimiteJogadores, int? LimiteGoleiros);
-    public record InscricaoDto(int? JogadorId, string? Nome, string? Telefone, int? Nivel, bool EhGoleiro);
+    public record InscricaoDto(int? JogadorId, string? Nome, string? Telefone, int? Nivel, bool EhGoleiro, string? Cpf);
     public record StatusPeladaDto(int Status);
     public record PunicaoDto(string? Motivo, int? Dias);
-    public record JogadorPeladaDto(string? Nome, string? Telefone, int? Nivel);
+    public record JogadorPeladaDto(string? Nome, string? Telefone, int? Nivel, string? Cpf);
+    public record AtualizarInscricaoDto(bool EhGoleiro);
 }
